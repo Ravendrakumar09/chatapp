@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
-import { User } from "@supabase/supabase-js"; // Add this import
+import { User } from "@supabase/supabase-js";
 
 export default function page() {
   const [user, setUser] = useState<null | User>(null);
@@ -10,9 +10,10 @@ export default function page() {
 
   useEffect(() => {
     const getUser = async () => {
+      const supabase = createClient();
       const { data } = await supabase.auth.getUser();
       if (!data.user) {
-        router.push("/auth/login"); // redirect if not logged in
+        router.push("/login"); // redirect if not logged in
       } else {
         console.log("data user : ",data.user);
         setUser(data.user);

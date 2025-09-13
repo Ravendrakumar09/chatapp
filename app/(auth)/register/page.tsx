@@ -1,9 +1,12 @@
 "use client";
 import { useState } from "react";
 import { IoMdEyeOff, IoMdEye } from "react-icons/io";
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from 'next/navigation';
 
 
 export default function page() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,6 +18,31 @@ export default function page() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    console.log("Registering user with email:", email);
+    
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+        }
+      }
+    });
+    
+    console.log("Supabase registration response:", data);
+    console.log("Supabase registration error:", error);
+    
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    } else {
+      setError("");
+      alert("Registration successful! Please check your email to confirm your account.");
+      router.push('/login');
+    }
   };
 
   return (
