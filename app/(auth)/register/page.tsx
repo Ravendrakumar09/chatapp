@@ -18,8 +18,6 @@ export default function page() {
     e.preventDefault();
     setLoading(true);
     setError("");
-
-    console.log("Registering user with email:", email);
     
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
@@ -31,10 +29,7 @@ export default function page() {
         }
       }
     });
-    
-    console.log("Supabase registration response:", data);
-    console.log("Supabase registration error:", error);
-    
+
     if (error) {
       setError(error.message);
       setLoading(false);

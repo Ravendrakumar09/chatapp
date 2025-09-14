@@ -18,27 +18,12 @@ export default function page() {
     setLoading(true);
     setError("");
 
-    // Debug logging
-    console.log("Environment check:");
-    console.log("NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log("NEXT_PUBLIC_SUPABASE_ANON_KEY:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "Loaded" : "Missing");
-    console.log("Login attempt with email:", email);
-
     const supabase = createClient();
-    
-    // Try to get user info first to see if user exists
-    console.log("Checking if user exists...");
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    console.log("Current user check:", userData, userError);
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    
-    console.log("Supabase login response:", data);
-    console.log("Supabase login error:", error);
-    console.log("Error details:", error?.message, error?.status);
     if (error) {
       setError(error.message);
       setLoading(false);
