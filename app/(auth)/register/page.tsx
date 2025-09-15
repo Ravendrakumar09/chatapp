@@ -4,7 +4,6 @@ import { IoMdEyeOff, IoMdEye } from "react-icons/io";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from 'next/navigation';
 
-
 export default function page() {
   const router = useRouter();
   const [name, setName] = useState("");

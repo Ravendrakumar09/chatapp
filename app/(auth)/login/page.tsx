@@ -3,6 +3,7 @@ import { useState } from "react";
 import { IoMdEyeOff, IoMdEye } from "react-icons/io";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from 'next/navigation';
+import { NextResponse } from "next/server";
 
 
 export default function page() {
@@ -19,7 +20,7 @@ export default function page() {
     setError("");
 
     const supabase = createClient();
-    
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -27,11 +28,22 @@ export default function page() {
     if (error) {
       setError(error.message);
       setLoading(false);
-    }else {
+    } else {
       router.push('/chat');
     }
 
   };
+
+  const handleGoogleLogin = async () => {
+    const supabase = createClient();
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: "http://localhost:3000/auth/callback",
+        },
+      });
+      if (error) console.error("Error:", error.message);
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-100 via-white to-purple-100">
@@ -99,6 +111,12 @@ export default function page() {
         </form>
 
         {/* Footer */}
+        {/* sign with google */}
+        <div>
+         <button onClick={handleGoogleLogin}>
+           Sign in with Google
+          </button>
+        </div>
         <p className="mt-6 text-center text-sm text-gray-600">
           Don’t have an account?{" "}
           <a href="/register" className="font-medium text-purple-600 hover:underline">
