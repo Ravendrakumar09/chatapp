@@ -1,0 +1,201 @@
+"use client";
+import { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+import { User } from "@supabase/supabase-js";
+import { RiMore2Fill } from "react-icons/ri";
+
+export default function page() {
+  const [user, setUser] = useState<null | User>(null);
+  const router = useRouter();
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [userToChat, setUserToChat] = useState<any>(null);
+  const [showUserDetailButton, setShowUserDetailButton] = useState(false);
+  const [showUserDetail, setShowUserDetail] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
+
+
+  //  for user 
+  useEffect(() => {
+    const getUser = async () => {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        router.push("/login");
+      } else {
+        setUser(data.user);
+      }
+    };
+    getUser();
+  }, []);
+
+  // for users list
+  useEffect(() => {
+    const fetchUsersList = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) {
+        console.error('Error fetching users:', error);
+      } else {
+        setUsersList(data || []);
+      }
+    }
+    fetchUsersList();
+  }, [])
+
+  // for user details
+  const userDetailList = () => {
+    setShowUserDetailButton(!showUserDetailButton);
+  }
+
+  // show user details function
+  const showUserDetails = () => {
+    setShowUserDetailButton(false);
+    setShowUserDetail(true);
+  }
+
+  // send message function
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log("Message sent:", newMessage);
+    setNewMessage(""); // clear input after sending
+  }
+
+  // logout function
+  const handleLogOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setTimeout(() => {
+      router.push("/login");
+    }, 1000);
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-gradient-to-br from-pink-100 via-white to-blue-100 font-sans">
+      {/* Header */}
+      <div className="flex flex-col">
+        <div className="flex justify-between items-center px-6 py-4 bg-white shadow-lg">
+          <div className="text-lg font-semibold text-gray-800">
+            {user ? (
+              <span>
+                <span className="text-pink-600">Welcome,</span>{" "}
+                {user.user_metadata.full_name}
+              </span>
+            ) : (
+              "Loading..."
+            )}
+          </div>
+          <button
+            onClick={handleLogOut}
+            className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-800 text-white rounded-full shadow-md hover:from-amber-500 hover:to-amber-700 transition"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      {/* Chat Container */}
+      <div className="flex flex-1 gap-4 p-6 bg-white  rounded-xl shadow-xl m-4">
+        {/* Left Sidebar */}
+        <div className="hidden md:flex flex-col w-1/5 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
+          <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+            Users
+          </h3>
+          <div>
+            {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
+              .map((u) => (
+                <div
+                  onClick={() => setUserToChat(u)}
+                  key={u.id}
+                  className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
+                >
+                  <p className="text-gray-800">{u.full_name}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Main Chat Area */}
+        <div className="flex flex-col justify-between flex-1 rounded-lg border border-gray-300 bg-gray-50 shadow-inner">
+          {/* Chat Header */}
+          <div className="flex justify-between bg-gradient-to-r from-gray-200 to-gray-300 py-4 px-6 border-b border-gray-400 rounded-t-lg">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Chat with{" "}
+              {userToChat ? (
+                <span className="bg-gradient-to-br from-blue-500 via-pink-200 to-blue-400 px-3 py-1 rounded-lg text-white shadow">
+                  {userToChat.full_name}
+                </span>
+              ) : (
+                <span className="text-red-500 italic">Select a user</span>
+              )}
+            </h2>
+            <div>
+              <p onClick={userDetailList} className="text-sm text-gray-600 hover:">
+                <RiMore2Fill className="inline mr-1" size={22} />
+              </p>
+              {showUserDetailButton && (
+                <div onClick={showUserDetails} className="absolute w-28 bg-white border border-gray-300 rounded-lg shadow-lg p-2">
+                  <h3>View Details</h3>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Chat Messages */}
+          <div className="flex-1 p-6 overflow-y-auto text-gray-700">
+            <div className="flex justify-center items-center text-gray-500 italic">
+              chat area
+            </div>
+          </div>
+
+          {/* Input Box */}
+          <div className="border-t border-gray-300 bg-white rounded-b-lg">
+            <form onSubmit={handleSendMessage} className="flex items-center gap-3 px-4 py-3">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
+              />
+              <button
+                type="submit"
+                disabled={!userToChat}
+                className={`px-5 py-2 rounded-full shadow-md transition 
+                ${userToChat
+                    ? "bg-gradient-to-r from-amber-600 to-amber-800 text-white hover:from-amber-500 hover:to-amber-700"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+              >
+                Send
+              </button>
+
+            </form>
+          </div>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="hidden md:flex flex-col w-1/5 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
+          <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+            Info
+          </h3>
+          <div className="flex-1 flex justify-center text-gray-600 italic">
+            {showUserDetail && (
+              <div className="mt-4 p-4 shadow">
+                <h4 className="text-lg font-semibold mb-2">User Details</h4>
+                {userToChat ? (
+                  <div>
+                    <p><span className="font-bold">Name:</span> {userToChat.full_name}</p>
+                    <p><span className="font-bold">id:</span> {userToChat.id}</p>
+                  </div>
+                ) : (
+                  <p className="text-red-500 italic">No user selected</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  );
+}
