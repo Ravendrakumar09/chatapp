@@ -89,7 +89,7 @@ export default function page() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 pr-10 text-sm shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 pr-10 text-gray-500 text-sm shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200"
               />
 
               {/* Eye icon */}

@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 import { RiMore2Fill } from "react-icons/ri";
+import { RxHamburgerMenu } from "react-icons/rx";
+
 
 export default function page() {
   const [user, setUser] = useState<null | User>(null);
@@ -13,6 +15,8 @@ export default function page() {
   const [showUserDetailButton, setShowUserDetailButton] = useState(false);
   const [showUserDetail, setShowUserDetail] = useState(false);
   const [newMessage, setNewMessage] = useState("");
+  const [messages, setMessages] = useState<any[]>([]);
+  const [showUserList, setShowUserList] = useState(false);
 
 
   //  for user 
@@ -20,6 +24,7 @@ export default function page() {
     const getUser = async () => {
       const supabase = createClient();
       const { data } = await supabase.auth.getUser();
+      console.log("User data fetched--", data);
       if (!data.user) {
         router.push("/login");
       } else {
@@ -55,10 +60,61 @@ export default function page() {
   }
 
   // send message function
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+
     console.log("Message sent:", newMessage);
-    setNewMessage(""); // clear input after sending
+    console.log("sender :", user?.user_metadata.full_name, "id:", user?.id);
+    console.log("receiver :", userToChat?.full_name, "id:", userToChat?.id);
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("privatemessages")
+      .insert({
+        chat_id: [user?.id, userToChat?.id].sort().join("_"),
+        content: newMessage,
+        sender_id: user?.id,
+        receiver_id: userToChat?.id,
+      })
+    if (error) {
+      console.error("Error fetching messages:", error);
+    } else {
+      setNewMessage("");   // clear input
+      fetchMessages();     // ✅ fetch messages again
+    }
+  }
+
+  // fetch Messages component
+    const fetchMessages = async () => {
+      if (!user?.id || !userToChat?.id) {
+        console.log("⏳ Skipping fetch, missing IDs:", user?.id, userToChat?.id);
+        return;
+      }
+      console.log("User ID:", user?.id);
+      console.log("UserToChat ID:", userToChat?.id);
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("privatemessages")
+        .select("*")
+        .or(
+          `and(sender_id.eq.${user?.id},receiver_id.eq.${userToChat?.id}),and(sender_id.eq.${userToChat?.id},receiver_id.eq.${user?.id})`
+        )
+        .order("created_at", { ascending: true });
+      console.log("Fetched messages:--", data);
+      if (error) {
+        console.error("Error fetching messages:--", error);
+      } else {
+        setMessages(data || []);
+      }
+    };
+    useEffect(() => {
+    fetchMessages();
+  }, [user, userToChat, setUserToChat]);
+
+  // show user list function
+  const handleShowUserList = () => {
+    setShowUserList(!showUserList);
   }
 
   // logout function
@@ -77,7 +133,7 @@ export default function page() {
         <div className="flex justify-between items-center px-6 py-4 bg-white shadow-lg">
           <div className="text-lg font-semibold text-gray-800">
             {user ? (
-              <span>
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                 <span className="text-pink-600">Welcome,</span>{" "}
                 {user.user_metadata.full_name}
               </span>
@@ -94,7 +150,7 @@ export default function page() {
         </div>
       </div>
 
-      {/* Chat Container */}
+      {/* main content */}
       <div className="flex flex-1 gap-4 p-6 bg-white  rounded-xl shadow-xl m-4">
         {/* Left Sidebar */}
         <div className="hidden md:flex flex-col w-1/5 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
@@ -115,10 +171,33 @@ export default function page() {
           </div>
         </div>
 
+        {showUserList && (
+        <div className="absolute lg:hidden sm:top-44 z-10 top-43 left-10 w-1/3 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
+          <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+            Users
+          </h3>
+          <div>
+            {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
+              .map((u) => (
+                <div
+                  onClick={() => { setUserToChat(u); setShowUserList(false); }}
+                  key={u.id}
+                  className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
+                >
+                  <p className="text-gray-800">{u.full_name}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
         {/* Main Chat Area */}
         <div className="flex flex-col justify-between flex-1 rounded-lg border border-gray-300 bg-gray-50 shadow-inner">
           {/* Chat Header */}
           <div className="flex justify-between bg-gradient-to-r from-gray-200 to-gray-300 py-4 px-6 border-b border-gray-400 rounded-t-lg">
+            <div onClick={handleShowUserList} className="text-gray-600 font-bold block lg:hidden">
+              <RxHamburgerMenu className="inline mr-1" size={22} />
+            </div>
             <h2 className="text-lg font-semibold text-gray-800">
               Chat with{" "}
               {userToChat ? (
@@ -135,7 +214,7 @@ export default function page() {
               </p>
               {showUserDetailButton && (
                 <div onClick={showUserDetails} className="absolute w-28 bg-white border border-gray-300 rounded-lg shadow-lg p-2">
-                  <h3>View Details</h3>
+                  <h3 className="text-black">View Details</h3>
                 </div>
               )}
             </div>
@@ -146,6 +225,33 @@ export default function page() {
             <div className="flex justify-center items-center text-gray-500 italic">
               chat area
             </div>
+            <div className="flex-1 p-6 overflow-y-auto text-gray-700">
+              {messages.length === 0 ? (
+                <div className="flex justify-center items-center text-gray-500 italic">
+                  No messages yet...
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.sender_id === user?.id;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex mb-2 ${isMe ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`px-4 py-2 rounded-2xl max-w-xs break-words shadow-md ${isMe
+                            ? "bg-blue-500 text-white rounded-br-none"
+                            : "bg-gray-200 text-gray-800 rounded-bl-none"
+                          }`}
+                      >
+                        <span className="block">{msg.content}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
           </div>
 
           {/* Input Box */}
@@ -153,6 +259,7 @@ export default function page() {
             <form onSubmit={handleSendMessage} className="flex items-center gap-3 px-4 py-3">
               <input
                 type="text"
+                required
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="Type your message..."
