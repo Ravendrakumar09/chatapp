@@ -107,12 +107,12 @@ export default function page() {
 
   // for time we can use
   const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   // fetch messages when user or userToChat changes
   useEffect(() => {
@@ -126,11 +126,15 @@ export default function page() {
   }
 
   // update messages at realtime
+  // update messages at realtime
   useEffect(() => {
     if (!userToChat || !user?.id) return;
 
     const supabase = createClient();
     const chatId = [user.id, userToChat.id].sort().join("_");
+
+    console.log("Setting up real-time subscription for chatId:", chatId);
+
     const channel = supabase
       .channel("realtime-messages")
       .on(
@@ -139,17 +143,28 @@ export default function page() {
           event: "INSERT",
           schema: "public",
           table: "privatemessages",
-          filter: `chat_id=eq.${chatId}`, // only listen to current chat
+          filter: `chat_id=eq.${chatId}`,
         },
         (payload) => {
-          console.log("New message:", payload.new);
-          setMessages((prev) => [...prev, payload.new]); // append new message
+          console.log("✅ ANY message received:", payload.new);
+          // Only add to messages if it matches our chatId
+          if (payload.new.chat_id === chatId) {
+            setMessages((prev) => [...prev, payload.new]);
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 Subscription status:", status);
+        if (status === 'SUBSCRIBED') {
+          console.log("✅ Real-time subscription active");
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error("❌ Real-time subscription failed");
+        }
+      });
 
     return () => {
-      supabase.removeChannel(channel); // cleanup on unmount
+      console.log("🧹 Cleaning up real-time subscription");
+      supabase.removeChannel(channel);
     };
   }, [user, userToChat]);
 
@@ -323,8 +338,8 @@ export default function page() {
                           }`}
                       >
                         <div className="flex flex-row gap-2 justify-center items-center">
-                        <span className="block">{msg.content}</span>
-                        <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
+                          <span className="block">{msg.content}</span>
+                          <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
                         </div>
                       </div>
                     </div>
