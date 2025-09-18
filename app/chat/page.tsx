@@ -24,7 +24,7 @@ export default function page() {
     const getUser = async () => {
       const supabase = createClient();
       const { data } = await supabase.auth.getUser();
-      console.log("User data fetched--", data);
+      // console.log("User data fetched--", data);
       if (!data.user) {
         router.push("/login");
       } else {
@@ -85,31 +85,39 @@ export default function page() {
   }
 
   // fetch Messages component
-    const fetchMessages = async () => {
-      if (!user?.id || !userToChat?.id) {
-        console.log("⏳ Skipping fetch, missing IDs:", user?.id, userToChat?.id);
-        return;
-      }
-      console.log("User ID:", user?.id);
-      console.log("UserToChat ID:", userToChat?.id);
+  const fetchMessages = async () => {
+    if (!user?.id || !userToChat?.id) {
+      return;
+    }
 
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("privatemessages")
-        .select("*")
-        .or(
-          `and(sender_id.eq.${user?.id},receiver_id.eq.${userToChat?.id}),and(sender_id.eq.${userToChat?.id},receiver_id.eq.${user?.id})`
-        )
-        .order("created_at", { ascending: true });
-      console.log("Fetched messages:--", data);
-      if (error) {
-        console.error("Error fetching messages:--", error);
-      } else {
-        setMessages(data || []);
-      }
-    };
-    useEffect(() => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("privatemessages")
+      .select("*")
+      .or(
+        `and(sender_id.eq.${user?.id},receiver_id.eq.${userToChat?.id}),and(sender_id.eq.${userToChat?.id},receiver_id.eq.${user?.id})`
+      )
+      .order("created_at", { ascending: true });
+    if (error) {
+      console.error("Error fetching messages:--", error);
+    } else {
+      setMessages(data || []);
+    }
+  };
+
+  // for time we can use
+  const formatTime = (timestamp: string) => {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+  // fetch messages when user or userToChat changes
+  useEffect(() => {
     fetchMessages();
+    formatTime;
   }, [user, userToChat, setUserToChat]);
 
   // show user list function
@@ -117,10 +125,83 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
+  // update messages at realtime
+  useEffect(() => {
+    if (!userToChat || !user?.id) return;
+
+    const supabase = createClient();
+    const chatId = [user.id, userToChat.id].sort().join("_");
+    const channel = supabase
+      .channel("realtime-messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `chat_id=eq.${chatId}`, // only listen to current chat
+        },
+        (payload) => {
+          console.log("New message:", payload.new);
+          setMessages((prev) => [...prev, payload.new]); // append new message
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel); // cleanup on unmount
+    };
+  }, [user, userToChat]);
+
+  // Restore on page load
+  useEffect(() => {
+    const savedUser = localStorage.getItem("selectedUser");
+    if (savedUser) {
+      setUserToChat(JSON.parse(savedUser));
+    }
+  }, []);
+
+  // Notifications for new messages (optional enhancement)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const supabase = createClient();
+
+    // listen for new messages where receiver is current user
+    const channel = supabase
+      .channel("message_notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "privatemessages",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log("📩 New message:", payload.new);
+          // show toast, badge, or sound
+          alert(`New message: ${payload.new.content}`);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  // select user to chat function
+  const handleSelectUserToChat = (u: any) => {
+    setUserToChat(u);
+    localStorage.setItem("selectedUser", JSON.stringify(u)); // save in localStorage
+  }
+
   // logout function
   const handleLogOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    localStorage.removeItem("selectedUser");
     setTimeout(() => {
       router.push("/login");
     }, 1000);
@@ -161,35 +242,35 @@ export default function page() {
             {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
               .map((u) => (
                 <div
-                  onClick={() => setUserToChat(u)}
+                  onClick={handleSelectUserToChat.bind(null, u)}
                   key={u.id}
                   className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                 >
-                  <p className="text-gray-800">{u.full_name}</p>
+                  <p className="text-gray-800 truncate w-full">{u.full_name}</p>
                 </div>
               ))}
           </div>
         </div>
 
         {showUserList && (
-        <div className="absolute lg:hidden sm:top-44 z-10 top-43 left-10 w-1/3 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
-          <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
-            Users
-          </h3>
-          <div>
-            {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
-              .map((u) => (
-                <div
-                  onClick={() => { setUserToChat(u); setShowUserList(false); }}
-                  key={u.id}
-                  className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
-                >
-                  <p className="text-gray-800">{u.full_name}</p>
-                </div>
-              ))}
+          <div className="absolute lg:hidden sm:top-44 z-10 top-43 left-10 w-1/3 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
+            <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+              Users
+            </h3>
+            <div>
+              {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
+                .map((u) => (
+                  <div
+                    onClick={() => { setUserToChat(u); setShowUserList(false); }}
+                    key={u.id}
+                    className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
+                  >
+                    <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                  </div>
+                ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
         {/* Main Chat Area */}
         <div className="flex flex-col justify-between flex-1 rounded-lg border border-gray-300 bg-gray-50 shadow-inner">
@@ -201,7 +282,7 @@ export default function page() {
             <h2 className="text-lg font-semibold text-gray-800">
               Chat with{" "}
               {userToChat ? (
-                <span className="bg-gradient-to-br from-blue-500 via-pink-200 to-blue-400 px-3 py-1 rounded-lg text-white shadow">
+                <span className="bg-gradient-to-br from-blue-500 via-pink-200 to-blue-400 px-3 py-1 rounded-lg text-white shadow truncate w-full">
                   {userToChat.full_name}
                 </span>
               ) : (
@@ -221,10 +302,7 @@ export default function page() {
           </div>
 
           {/* Chat Messages */}
-          <div className="flex-1 p-6 overflow-y-auto text-gray-700">
-            <div className="flex justify-center items-center text-gray-500 italic">
-              chat area
-            </div>
+          <div className="flex flex-col text-gray-700 h-[500px]">
             <div className="flex-1 p-6 overflow-y-auto text-gray-700">
               {messages.length === 0 ? (
                 <div className="flex justify-center items-center text-gray-500 italic">
@@ -240,19 +318,22 @@ export default function page() {
                     >
                       <div
                         className={`px-4 py-2 rounded-2xl max-w-xs break-words shadow-md ${isMe
-                            ? "bg-blue-500 text-white rounded-br-none"
-                            : "bg-gray-200 text-gray-800 rounded-bl-none"
+                          ? "bg-blue-500 text-white rounded-br-none"
+                          : "bg-gray-200 text-gray-800 rounded-bl-none"
                           }`}
                       >
+                        <div className="flex flex-row gap-2 justify-center items-center">
                         <span className="block">{msg.content}</span>
+                        <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
+                        </div>
                       </div>
                     </div>
                   );
                 })
               )}
             </div>
-
           </div>
+
 
           {/* Input Box */}
           <div className="border-t border-gray-300 bg-white rounded-b-lg">
