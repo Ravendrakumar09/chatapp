@@ -138,7 +138,7 @@ export default function page() {
         {
           event: "INSERT",
           schema: "public",
-          table: "messages",
+          table: "privatemessages",
           filter: `chat_id=eq.${chatId}`, // only listen to current chat
         },
         (payload) => {
