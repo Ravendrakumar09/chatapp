@@ -101,6 +101,7 @@ export default function page() {
     if (error) {
       console.error("Error fetching messages:--", error);
     } else {
+      console.log("Messages fetched successfully", data);
       setMessages(data || []);
     }
   };
@@ -125,48 +126,52 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
-  // update messages at realtime
-  // update messages at realtime
-  useEffect(() => {
-    if (!userToChat || !user?.id) return;
+ // update messages at realtime
+useEffect(() => {
+  console.log("Updating messages at realtime");
+  if (!userToChat || !user?.id) return;
 
-    const supabase = createClient();
-    const chatId = [user.id, userToChat.id].sort().join("_");
+  const supabase = createClient();
+  const chatId = [user.id, userToChat.id].sort().join("_");
+  
+  console.log("Setting up real-time subscription for chatId:", chatId);
 
-    console.log("Setting up real-time subscription for chatId:", chatId);
-
-    const channel = supabase
-      .channel("realtime-messages")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "privatemessages",
-          filter: `chat_id=eq.${chatId}`,
-        },
-        (payload) => {
-          console.log("✅ ANY message received:", payload.new);
-          // Only add to messages if it matches our chatId
-          if (payload.new.chat_id === chatId) {
-            setMessages((prev) => [...prev, payload.new]);
-          }
+  const channel = supabase
+    .channel(`global-messages-${user.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "privatemessages",
+        // Remove the filter to listen to all messages
+      },
+      (payload) => {
+        console.log("✅ ANY message received:", payload.new);
+        console.log("Received chatId:", payload.new.chat_id);
+        console.log("Expected chatId:", chatId);
+        
+        // Only process messages for this chat
+        if (payload.new.chat_id === chatId) {
+          console.log("✅ Adding message to chat");
+          setMessages((prev) => [...prev, payload.new]);
+        } else {
+          console.log("❌ Message not for this chat, ignoring");
         }
-      )
-      .subscribe((status) => {
-        console.log("📡 Subscription status:", status);
-        if (status === 'SUBSCRIBED') {
-          console.log("✅ Real-time subscription active");
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error("❌ Real-time subscription failed");
-        }
-      });
+      }
+    )
+    .subscribe((status) => {
+      console.log("📡 Subscription status:", status);
+      if (status === 'SUBSCRIBED') {
+        console.log("✅ Real-time subscription active");
+      }
+    });
 
-    return () => {
-      console.log("🧹 Cleaning up real-time subscription");
-      supabase.removeChannel(channel);
-    };
-  }, [user, userToChat]);
+  return () => {
+    console.log("🧹 Cleaning up real-time subscription");
+    supabase.removeChannel(channel);
+  };
+}, [user, userToChat]);
 
   // Restore on page load
   useEffect(() => {
