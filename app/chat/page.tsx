@@ -89,8 +89,6 @@ export default function page() {
     if (!user?.id || !userToChat?.id) {
       return;
     }
-    console.log("User ID:", user?.id);
-    console.log("UserToChat ID:", userToChat?.id);
 
     const supabase = createClient();
     const { data, error } = await supabase
@@ -100,7 +98,6 @@ export default function page() {
         `and(sender_id.eq.${user?.id},receiver_id.eq.${userToChat?.id}),and(sender_id.eq.${userToChat?.id},receiver_id.eq.${user?.id})`
       )
       .order("created_at", { ascending: true });
-    console.log("Fetched messages:--", data);
     if (error) {
       console.error("Error fetching messages:--", error);
     } else {
@@ -108,9 +105,19 @@ export default function page() {
     }
   };
 
+  // for time we can use
+  const formatTime = (timestamp: string) => {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
   // fetch messages when user or userToChat changes
   useEffect(() => {
     fetchMessages();
+    formatTime;
   }, [user, userToChat, setUserToChat]);
 
   // show user list function
@@ -315,7 +322,10 @@ export default function page() {
                           : "bg-gray-200 text-gray-800 rounded-bl-none"
                           }`}
                       >
+                        <div className="flex flex-row gap-2 justify-center items-center">
                         <span className="block">{msg.content}</span>
+                        <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
+                        </div>
                       </div>
                     </div>
                   );

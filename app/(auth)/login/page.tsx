@@ -112,12 +112,12 @@ export default function page() {
 
         {/* Footer */}
         {/* sign with google */}
-        <div>
+        <div className="mt-6 flex items-center justify-center">
          <button onClick={handleGoogleLogin}>
-           Sign in with Google
+           Sign in with <span className="text-purple-600 hover:underline">Google</span>
           </button>
         </div>
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-2 text-center text-sm text-gray-600">
           Don’t have an account?{" "}
           <a href="/register" className="font-medium text-purple-600 hover:underline">
             Register
