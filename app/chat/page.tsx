@@ -129,7 +129,7 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
-  // 🔽 Auto scroll when messages change
+  // Auto scroll when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -308,7 +308,7 @@ export default function page() {
             <h2 className="text-lg font-semibold text-gray-800">
               Chat with{" "}
               {userToChat ? (
-                <span className="bg-gradient-to-br from-blue-500 via-pink-200 to-blue-400 px-3 py-1 rounded-lg text-white shadow truncate w-full">
+                <span className="bg-gradient-to-br px-3 py-1 rounded-lg text-shadow-red-900 italic bg-fuchsia-300 shadow truncate w-full">
                   {userToChat.full_name}
                 </span>
               ) : (
