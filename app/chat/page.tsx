@@ -1,5 +1,5 @@
 'use client';
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
@@ -19,6 +19,7 @@ export default function page() {
   const [messages, setMessages] = useState<any[]>([]);
   const [showUserList, setShowUserList] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
 
   //  for user 
@@ -128,6 +129,13 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
+  // 🔽 Auto scroll when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   // update messages at realtime
   useEffect(() => {
     console.log("Updating messages at realtime");
@@ -193,12 +201,12 @@ export default function page() {
   // for notification
   const notification = (senderId: string) => {
     console.log("Notification from:", senderId);
-    if (notificationMessage  !== senderId) {
+    if (notificationMessage !== senderId) {
       setNotificationMessage(senderId);
     }
-    if(notificationMessage === senderId){
-    handleSelectUserToChat(senderId);
-    setNotificationMessage("");
+    if (notificationMessage === senderId) {
+      handleSelectUserToChat(senderId);
+      setNotificationMessage("");
     }
   };
 
@@ -251,13 +259,13 @@ export default function page() {
                   key={u.id}
                   className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                 >
-                     {notificationMessage === u.id ? (
-                      <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl">
-                        <p className="text-gray-800 bg-red-600 rounded-2xl truncate w-full">{u.full_name}</p>
-                      </div>
-                    ):(
-                      <p className="text-gray-800 truncate w-full">{u.full_name}</p>
-                   )}
+                  {notificationMessage === u.id ? (
+                    <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl">
+                      <p className="text-gray-800 bg-red-600 rounded-2xl truncate w-full">{u.full_name}</p>
+                    </div>
+                  ) : (
+                    <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                  )}
                 </div>
               ))}
           </div>
@@ -268,25 +276,25 @@ export default function page() {
             <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
               Users
             </h3>
-              <div>
-            {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
+            <div>
+              {usersList.filter((u) => u.id !== user?.id)
 
-              .map((u) => (
-                <div
-                  onClick={handleSelectUserToChat.bind(null, u)}
-                  key={u.id}
-                  className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
-                >
-                     {notificationMessage === u.id ? (
+                .map((u) => (
+                  <div
+                    onClick={handleSelectUserToChat.bind(null, u)}
+                    key={u.id}
+                    className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
+                  >
+                    {notificationMessage === u.id ? (
                       <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl p-1">
                         <p className="text-gray-800 bg-red-600 truncate w-full rounded-2xl p-1">{u.full_name}</p>
                       </div>
-                    ):(
+                    ) : (
                       <p className="text-gray-800 truncate w-full">{u.full_name}</p>
-                    )} 
-                </div>
-              ))}
-          </div>
+                    )}
+                  </div>
+                ))}
+            </div>
           </div>
         )}
 
@@ -336,19 +344,22 @@ export default function page() {
                     >
                       <div
                         className={`px-4 py-2 rounded-2xl max-w-xs break-words shadow-md ${isMe
-                          ? "bg-blue-500 text-white rounded-br-none"
-                          : "bg-gray-200 text-gray-800 rounded-bl-none"
+                            ? "bg-blue-500 text-white rounded-br-none"
+                            : "bg-gray-200 text-gray-800 rounded-bl-none"
                           }`}
                       >
                         <div className="flex flex-row gap-2 justify-center items-center">
                           <span className="block">{msg.content}</span>
-                          <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
+                          <span className="flex text-[12px] pt-2">
+                            {formatTime(msg.created_at)}
+                          </span>
                         </div>
                       </div>
                     </div>
                   );
                 })
               )}
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
