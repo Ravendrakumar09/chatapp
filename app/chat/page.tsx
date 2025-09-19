@@ -101,18 +101,19 @@ export default function page() {
     if (error) {
       console.error("Error fetching messages:--", error);
     } else {
+      console.log("Messages fetched successfully", data);
       setMessages(data || []);
     }
   };
 
   // for time we can use
   const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   // fetch messages when user or userToChat changes
   useEffect(() => {
@@ -125,33 +126,52 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
-  // update messages at realtime
-  useEffect(() => {
-    if (!userToChat || !user?.id) return;
+ // update messages at realtime
+useEffect(() => {
+  console.log("Updating messages at realtime");
+  if (!userToChat || !user?.id) return;
 
-    const supabase = createClient();
-    const chatId = [user.id, userToChat.id].sort().join("_");
-    const channel = supabase
-      .channel("realtime-messages")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `chat_id=eq.${chatId}`, // only listen to current chat
-        },
-        (payload) => {
-          console.log("New message:", payload.new);
-          setMessages((prev) => [...prev, payload.new]); // append new message
+  const supabase = createClient();
+  const chatId = [user.id, userToChat.id].sort().join("_");
+  
+  console.log("Setting up real-time subscription for chatId:", chatId);
+
+  const channel = supabase
+    .channel(`global-messages-${user.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "privatemessages",
+        // Remove the filter to listen to all messages
+      },
+      (payload) => {
+        console.log("✅ ANY message received:", payload.new);
+        console.log("Received chatId:", payload.new.chat_id);
+        console.log("Expected chatId:", chatId);
+        
+        // Only process messages for this chat
+        if (payload.new.chat_id === chatId) {
+          console.log("✅ Adding message to chat");
+          setMessages((prev) => [...prev, payload.new]);
+        } else {
+          console.log("❌ Message not for this chat, ignoring");
         }
-      )
-      .subscribe();
+      }
+    )
+    .subscribe((status) => {
+      console.log("📡 Subscription status:", status);
+      if (status === 'SUBSCRIBED') {
+        console.log("✅ Real-time subscription active");
+      }
+    });
 
-    return () => {
-      supabase.removeChannel(channel); // cleanup on unmount
-    };
-  }, [user, userToChat]);
+  return () => {
+    console.log("🧹 Cleaning up real-time subscription");
+    supabase.removeChannel(channel);
+  };
+}, [user, userToChat]);
 
   // Restore on page load
   useEffect(() => {
@@ -323,8 +343,8 @@ export default function page() {
                           }`}
                       >
                         <div className="flex flex-row gap-2 justify-center items-center">
-                        <span className="block">{msg.content}</span>
-                        <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
+                          <span className="block">{msg.content}</span>
+                          <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
                         </div>
                       </div>
                     </div>
