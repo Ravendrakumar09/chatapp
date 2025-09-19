@@ -179,7 +179,7 @@ export default function page() {
       console.log("🧹 Cleaning up real-time subscription");
       supabase.removeChannel(channel);
     };
-  }, [user, userToChat]);
+  }, [user, userToChat, messages]);
 
   // Restore on page load
   useEffect(() => {
