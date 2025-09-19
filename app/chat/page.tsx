@@ -1,10 +1,11 @@
-"use client";
-import { use, useEffect, useState } from "react";
+'use client';
+import { use, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 import { RiMore2Fill } from "react-icons/ri";
 import { RxHamburgerMenu } from "react-icons/rx";
+import toast from "react-hot-toast";
 
 
 export default function page() {
@@ -17,6 +18,8 @@ export default function page() {
   const [newMessage, setNewMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [showUserList, setShowUserList] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
 
   //  for user 
@@ -126,52 +129,57 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
- // update messages at realtime
-useEffect(() => {
-  console.log("Updating messages at realtime");
-  if (!userToChat || !user?.id) return;
+  // Auto scroll when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
-  const supabase = createClient();
-  const chatId = [user.id, userToChat.id].sort().join("_");
-  
-  console.log("Setting up real-time subscription for chatId:", chatId);
+  // update messages at realtime
+  useEffect(() => {
+    console.log("Updating messages at realtime");
+    if (!userToChat || !user?.id) return;
 
-  const channel = supabase
-    .channel(`global-messages-${user.id}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "privatemessages",
-        // Remove the filter to listen to all messages
-      },
-      (payload) => {
-        console.log("✅ ANY message received:", payload.new);
-        console.log("Received chatId:", payload.new.chat_id);
-        console.log("Expected chatId:", chatId);
-        
-        // Only process messages for this chat
-        if (payload.new.chat_id === chatId) {
-          console.log("✅ Adding message to chat");
-          setMessages((prev) => [...prev, payload.new]);
-        } else {
-          console.log("❌ Message not for this chat, ignoring");
+    const supabase = createClient();
+    const chatId = [user.id, userToChat.id].sort().join("_");
+
+    console.log("Setting up real-time subscription for chatId:", chatId);
+
+    const channel = supabase
+      .channel(`global-messages-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "privatemessages",
+          // Remove the filter to listen to all messages
+        },
+        (payload) => {
+
+          // Only process messages for this chat
+          if (payload.new.chat_id === chatId) {
+            setMessages((prev) => [...prev, payload.new]);
+          } else {
+            notification(payload.new.sender_id); // call for notification function
+            console.log("❌ Message not for this chat, ignoring");
+
+          }
         }
-      }
-    )
-    .subscribe((status) => {
-      console.log("📡 Subscription status:", status);
-      if (status === 'SUBSCRIBED') {
-        console.log("✅ Real-time subscription active");
-      }
-    });
+      )
+      .subscribe((status) => {
+        console.log("📡 Subscription status:", status);
+        if (status === 'SUBSCRIBED') {
+          console.log("✅ Real-time subscription active");
+        }
+      });
 
-  return () => {
-    console.log("🧹 Cleaning up real-time subscription");
-    supabase.removeChannel(channel);
-  };
-}, [user, userToChat]);
+    return () => {
+      console.log("🧹 Cleaning up real-time subscription");
+      supabase.removeChannel(channel);
+    };
+  }, [user, userToChat, messages]);
 
   // Restore on page load
   useEffect(() => {
@@ -181,41 +189,26 @@ useEffect(() => {
     }
   }, []);
 
-  // Notifications for new messages (optional enhancement)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const supabase = createClient();
-
-    // listen for new messages where receiver is current user
-    const channel = supabase
-      .channel("message_notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "privatemessages",
-          filter: `receiver_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log("📩 New message:", payload.new);
-          // show toast, badge, or sound
-          alert(`New message: ${payload.new.content}`);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
   // select user to chat function
   const handleSelectUserToChat = (u: any) => {
     setUserToChat(u);
     localStorage.setItem("selectedUser", JSON.stringify(u)); // save in localStorage
+    setShowUserList(false); // hide user list on mobile after selecting a user
+    setNotificationMessage(""); // clear notification on selecting user
   }
+
+
+  // for notification
+  const notification = (senderId: string) => {
+    console.log("Notification from:", senderId);
+    if (notificationMessage !== senderId) {
+      setNotificationMessage(senderId);
+    }
+    if (notificationMessage === senderId) {
+      handleSelectUserToChat(senderId);
+      setNotificationMessage("");
+    }
+  };
 
   // logout function
   const handleLogOut = async () => {
@@ -266,7 +259,13 @@ useEffect(() => {
                   key={u.id}
                   className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                 >
-                  <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                  {notificationMessage === u.id ? (
+                    <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl">
+                      <p className="text-gray-800 bg-red-600 rounded-2xl truncate w-full">{u.full_name}</p>
+                    </div>
+                  ) : (
+                    <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                  )}
                 </div>
               ))}
           </div>
@@ -278,14 +277,21 @@ useEffect(() => {
               Users
             </h3>
             <div>
-              {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
+              {usersList.filter((u) => u.id !== user?.id)
+
                 .map((u) => (
                   <div
-                    onClick={() => { setUserToChat(u); setShowUserList(false); }}
+                    onClick={handleSelectUserToChat.bind(null, u)}
                     key={u.id}
                     className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                   >
-                    <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                    {notificationMessage === u.id ? (
+                      <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl p-1">
+                        <p className="text-gray-800 bg-red-600 truncate w-full rounded-2xl p-1">{u.full_name}</p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                    )}
                   </div>
                 ))}
             </div>
@@ -302,7 +308,7 @@ useEffect(() => {
             <h2 className="text-lg font-semibold text-gray-800">
               Chat with{" "}
               {userToChat ? (
-                <span className="bg-gradient-to-br from-blue-500 via-pink-200 to-blue-400 px-3 py-1 rounded-lg text-white shadow truncate w-full">
+                <span className="bg-gradient-to-br px-3 py-1 rounded-lg text-shadow-red-900 italic bg-fuchsia-300 shadow truncate w-full">
                   {userToChat.full_name}
                 </span>
               ) : (
@@ -338,19 +344,22 @@ useEffect(() => {
                     >
                       <div
                         className={`px-4 py-2 rounded-2xl max-w-xs break-words shadow-md ${isMe
-                          ? "bg-blue-500 text-white rounded-br-none"
-                          : "bg-gray-200 text-gray-800 rounded-bl-none"
+                            ? "bg-blue-500 text-white rounded-br-none"
+                            : "bg-gray-200 text-gray-800 rounded-bl-none"
                           }`}
                       >
                         <div className="flex flex-row gap-2 justify-center items-center">
                           <span className="block">{msg.content}</span>
-                          <span className="flex text-[12px] pt-2">{formatTime(msg.created_at)}</span>
+                          <span className="flex text-[12px] pt-2">
+                            {formatTime(msg.created_at)}
+                          </span>
                         </div>
                       </div>
                     </div>
                   );
                 })
               )}
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
