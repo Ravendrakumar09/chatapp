@@ -1,10 +1,11 @@
-"use client";
+'use client';
 import { use, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 import { RiMore2Fill } from "react-icons/ri";
 import { RxHamburgerMenu } from "react-icons/rx";
+import toast from "react-hot-toast";
 
 
 export default function page() {
@@ -17,6 +18,7 @@ export default function page() {
   const [newMessage, setNewMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [showUserList, setShowUserList] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
 
 
   //  for user 
@@ -126,52 +128,50 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
- // update messages at realtime
-useEffect(() => {
-  console.log("Updating messages at realtime");
-  if (!userToChat || !user?.id) return;
+  // update messages at realtime
+  useEffect(() => {
+    console.log("Updating messages at realtime");
+    if (!userToChat || !user?.id) return;
 
-  const supabase = createClient();
-  const chatId = [user.id, userToChat.id].sort().join("_");
-  
-  console.log("Setting up real-time subscription for chatId:", chatId);
+    const supabase = createClient();
+    const chatId = [user.id, userToChat.id].sort().join("_");
 
-  const channel = supabase
-    .channel(`global-messages-${user.id}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "privatemessages",
-        // Remove the filter to listen to all messages
-      },
-      (payload) => {
-        console.log("✅ ANY message received:", payload.new);
-        console.log("Received chatId:", payload.new.chat_id);
-        console.log("Expected chatId:", chatId);
-        
-        // Only process messages for this chat
-        if (payload.new.chat_id === chatId) {
-          console.log("✅ Adding message to chat");
-          setMessages((prev) => [...prev, payload.new]);
-        } else {
-          console.log("❌ Message not for this chat, ignoring");
+    console.log("Setting up real-time subscription for chatId:", chatId);
+
+    const channel = supabase
+      .channel(`global-messages-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "privatemessages",
+          // Remove the filter to listen to all messages
+        },
+        (payload) => {
+
+          // Only process messages for this chat
+          if (payload.new.chat_id === chatId) {
+            setMessages((prev) => [...prev, payload.new]);
+          } else {
+            notification(payload.new.sender_id); // call for notification function
+            console.log("❌ Message not for this chat, ignoring");
+
+          }
         }
-      }
-    )
-    .subscribe((status) => {
-      console.log("📡 Subscription status:", status);
-      if (status === 'SUBSCRIBED') {
-        console.log("✅ Real-time subscription active");
-      }
-    });
+      )
+      .subscribe((status) => {
+        console.log("📡 Subscription status:", status);
+        if (status === 'SUBSCRIBED') {
+          console.log("✅ Real-time subscription active");
+        }
+      });
 
-  return () => {
-    console.log("🧹 Cleaning up real-time subscription");
-    supabase.removeChannel(channel);
-  };
-}, [user, userToChat]);
+    return () => {
+      console.log("🧹 Cleaning up real-time subscription");
+      supabase.removeChannel(channel);
+    };
+  }, [user, userToChat]);
 
   // Restore on page load
   useEffect(() => {
@@ -181,41 +181,26 @@ useEffect(() => {
     }
   }, []);
 
-  // Notifications for new messages (optional enhancement)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const supabase = createClient();
-
-    // listen for new messages where receiver is current user
-    const channel = supabase
-      .channel("message_notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "privatemessages",
-          filter: `receiver_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log("📩 New message:", payload.new);
-          // show toast, badge, or sound
-          alert(`New message: ${payload.new.content}`);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
   // select user to chat function
   const handleSelectUserToChat = (u: any) => {
     setUserToChat(u);
     localStorage.setItem("selectedUser", JSON.stringify(u)); // save in localStorage
+    setShowUserList(false); // hide user list on mobile after selecting a user
+    setNotificationMessage(""); // clear notification on selecting user
   }
+
+
+  // for notification
+  const notification = (senderId: string) => {
+    console.log("Notification from:", senderId);
+    if (notificationMessage  !== senderId) {
+      setNotificationMessage(senderId);
+    }
+    if(notificationMessage === senderId){
+    handleSelectUserToChat(senderId);
+    setNotificationMessage("");
+    }
+  };
 
   // logout function
   const handleLogOut = async () => {
@@ -266,7 +251,13 @@ useEffect(() => {
                   key={u.id}
                   className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                 >
-                  <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                     {notificationMessage === u.id ? (
+                      <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl">
+                        <p className="text-gray-800 bg-red-600 rounded-2xl truncate w-full">{u.full_name}</p>
+                      </div>
+                    ):(
+                      <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                   )}
                 </div>
               ))}
           </div>
@@ -277,18 +268,25 @@ useEffect(() => {
             <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
               Users
             </h3>
-            <div>
-              {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
-                .map((u) => (
-                  <div
-                    onClick={() => { setUserToChat(u); setShowUserList(false); }}
-                    key={u.id}
-                    className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
-                  >
-                    <p className="text-gray-800 truncate w-full">{u.full_name}</p>
-                  </div>
-                ))}
-            </div>
+              <div>
+            {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
+
+              .map((u) => (
+                <div
+                  onClick={handleSelectUserToChat.bind(null, u)}
+                  key={u.id}
+                  className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
+                >
+                     {notificationMessage === u.id ? (
+                      <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl p-1">
+                        <p className="text-gray-800 bg-red-600 truncate w-full rounded-2xl p-1">{u.full_name}</p>
+                      </div>
+                    ):(
+                      <p className="text-gray-800 truncate w-full">{u.full_name}</p>
+                    )} 
+                </div>
+              ))}
+          </div>
           </div>
         )}
 
