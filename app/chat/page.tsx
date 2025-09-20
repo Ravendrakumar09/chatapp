@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 import { RiMore2Fill } from "react-icons/ri";
 import { RxHamburgerMenu } from "react-icons/rx";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
+import { FcVideoCall } from "react-icons/fc";
+import { IoIosCall } from "react-icons/io";
+
 
 
 export default function page() {
@@ -20,6 +23,8 @@ export default function page() {
   const [showUserList, setShowUserList] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [messageCounter, setMessageCounter] = useState(0);
+  const [showEditProfilePopup, setShowEditProfilePopup] = useState(false);
 
 
   //  for user 
@@ -36,6 +41,13 @@ export default function page() {
     };
     getUser();
   }, []);
+
+  // for edit profile
+  const handleEditProfile = async () => {
+    console.log("Edit profile clicked");
+    setShowEditProfilePopup(true);
+
+  }
 
   // for users list
   useEffect(() => {
@@ -163,6 +175,7 @@ export default function page() {
             setMessages((prev) => [...prev, payload.new]);
           } else {
             notification(payload.new.sender_id); // call for notification function
+
             console.log("❌ Message not for this chat, ignoring");
 
           }
@@ -195,20 +208,40 @@ export default function page() {
     localStorage.setItem("selectedUser", JSON.stringify(u)); // save in localStorage
     setShowUserList(false); // hide user list on mobile after selecting a user
     setNotificationMessage(""); // clear notification on selecting user
+    setMessageCounter(0); // clear message counter on selecting user
   }
-
 
   // for notification
   const notification = (senderId: string) => {
     console.log("Notification from:", senderId);
     if (notificationMessage !== senderId) {
       setNotificationMessage(senderId);
+      setMessageCounter((prev) => prev + 1);
     }
     if (notificationMessage === senderId) {
       handleSelectUserToChat(senderId);
       setNotificationMessage("");
+      setMessageCounter(0);
     }
   };
+
+  // audio call function
+  const handleAudioCall = () => {
+    if (!userToChat) {
+      toast.error("Please select a user to call");
+      return;
+    }
+    toast.success(`Audio feature is coming soon! ${userToChat?.full_name}`);
+  }
+
+  // video call function
+  const handleVidoeCall = () => {
+    if (!userToChat) {
+      toast.error("Please select a user to call");
+      return;
+    }
+    toast.success(`Video feature is coming soon! ${userToChat?.full_name}`);
+  }
 
   // logout function
   const handleLogOut = async () => {
@@ -225,22 +258,67 @@ export default function page() {
       {/* Header */}
       <div className="flex flex-col">
         <div className="flex justify-between items-center px-6 py-4 bg-white shadow-lg">
-          <div className="text-lg font-semibold text-gray-800">
+          <div className="flex flex-row justify-center items-center text-lg font-semibold text-gray-800">
             {user ? (
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+              <span className="flex justify-center items-center overflow-hidden text-ellipsis whitespace-nowrap">
                 <span className="text-pink-600">Welcome,</span>{" "}
+                <span className="w-8 h-8 rounded-full bg-gradient-to-tr mx-1 from-pink-400 via-purple-400 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg">
+                  {user?.user_metadata.full_name
+                    ? user.user_metadata.full_name.charAt(0).toUpperCase()
+                    : "U"}
+                </span>
                 {user.user_metadata.full_name}
               </span>
             ) : (
               "Loading..."
             )}
           </div>
-          <button
-            onClick={handleLogOut}
-            className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-800 text-white rounded-full shadow-md hover:from-amber-500 hover:to-amber-700 transition"
-          >
-            Logout
-          </button>
+          <div>
+            <button
+              onClick={() => setShowEditProfilePopup(!showEditProfilePopup)}
+              className="px-5 py-2 bg-gradient-to-r from-pink-600 to-pink-800 text-white rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 transition mr-3"
+            >
+              Edit Profile
+            </button>
+
+            {showEditProfilePopup && (
+              <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+                  <h2 className="text-xl font-semibold mb-4">Edit Profile</h2>
+                  <form onSubmit={handleEditProfile}>
+                    <label className="block mb-2">
+                      Full Name:
+                      <input
+                        type="text"
+                        defaultValue={user?.user_metadata.full_name || ""}
+                        className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
+                      />
+                    </label>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-gradient-to-r from-pink-600 to-pink-800 text-white rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 transition mr-3"
+                      > Save Changes </button>
+                      <button
+                        onClick={() => setShowEditProfilePopup(false)}
+                        className="px-4 py-2 bg-red-600 text-white rounded-full shadow-md hover:bg-red-500 transition"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleLogOut}
+              className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-800 text-white rounded-full shadow-md hover:from-amber-500 hover:to-amber-700 transition"
+            >
+              Logout
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -260,8 +338,12 @@ export default function page() {
                   className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                 >
                   {notificationMessage === u.id ? (
-                    <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl">
-                      <p className="text-gray-800 bg-red-600 rounded-2xl truncate w-full">{u.full_name}</p>
+                    <div className="flex flex-row justify-between items-center">
+                      <p className="text-gray-800 truncate w-full">{u.full_name} 
+                      </p>
+                      <span className="bg-red-700 rounded-full w-7 h-6 ml-6 text-white shadow-2xl flex items-center justify-center text-sm">
+                        {messageCounter}
+                      </span>
                     </div>
                   ) : (
                     <p className="text-gray-800 truncate w-full">{u.full_name}</p>
@@ -286,8 +368,12 @@ export default function page() {
                     className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                   >
                     {notificationMessage === u.id ? (
-                      <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl p-1">
-                        <p className="text-gray-800 bg-red-600 truncate w-full rounded-2xl p-1">{u.full_name}</p>
+                      <div className="flex flex-row justify-between items-center">
+                        <p className="text-gray-800 truncate w-full">{u.full_name}
+                        </p>
+                        <span className="flex justify-center items-center bg-red-700 rounded-full w-7 h-6 ml-2 text-white shadow-2xl text-sm">
+                          {messageCounter}
+                        </span>
                       </div>
                     ) : (
                       <p className="text-gray-800 truncate w-full">{u.full_name}</p>
@@ -315,7 +401,30 @@ export default function page() {
                 <span className="text-red-500 italic">Select a user</span>
               )}
             </h2>
-            <div>
+            <div className="flex items-center gap-3 relative">
+
+              {/* audio and video area  */}
+              <div className="text-gray-600 font-bold">
+                <div className="relative group inline-block">
+                  <FcVideoCall
+                    className="mr-4 cursor-pointer"
+                    size={28}
+                    onClick={handleVidoeCall}
+                  />
+                  <span className="absolute bottom-full mb-2 hidden group-hover:block text-xs bg-gray-700 text-white px-2 py-1 rounded shadow-lg">
+                    Video Call
+                  </span>
+                </div>
+                <div className="relative group inline-block">
+                  <IoIosCall
+                    className="mr-4 cursor-pointer"
+                    size={26}
+                    onClick={handleAudioCall}
+                  />
+                  <span className="absolute bottom-full mb-2 hidden group-hover:block text-xs bg-gray-700 text-white px-2 py-1 rounded shadow-lg">
+                    Audio Call
+                  </span>
+                </div>              </div>
               <p onClick={userDetailList} className="text-sm text-gray-600 hover:">
                 <RiMore2Fill className="inline mr-1" size={22} />
               </p>
@@ -344,8 +453,8 @@ export default function page() {
                     >
                       <div
                         className={`px-4 py-2 rounded-2xl max-w-xs break-words shadow-md ${isMe
-                            ? "bg-blue-500 text-white rounded-br-none"
-                            : "bg-gray-200 text-gray-800 rounded-bl-none"
+                          ? "bg-blue-500 text-white rounded-br-none"
+                          : "bg-gray-200 text-gray-800 rounded-bl-none"
                           }`}
                       >
                         <div className="flex flex-row gap-2 justify-center items-center">
@@ -362,7 +471,6 @@ export default function page() {
               <div ref={messagesEndRef} />
             </div>
           </div>
-
 
           {/* Input Box */}
           <div className="border-t border-gray-300 bg-white rounded-b-lg">
@@ -385,9 +493,10 @@ export default function page() {
               >
                 Send
               </button>
-
             </form>
           </div>
+          {/* toast for audio and video call */}
+          <Toaster position="top-right" reverseOrder={false} />
         </div>
 
         {/* Right Sidebar */}
