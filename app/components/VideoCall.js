@@ -1,94 +1,111 @@
-// components/VideoCall.js
+// components/VideoCallRoom.js
+'use client'; // if using Next.js 13+ app router
+
 import { useEffect, useRef, useState } from 'react';
 import * as Video from 'twilio-video';
 
-export default function VideoCall({ roomName, identity, onLeave }) {
-  const [room, setRoom] = useState(null);
+export default function VideoCallRoom({ roomName, identity, onLeave }) {
+  const [isConnected, setIsConnected] = useState(false);
   const [participants, setParticipants] = useState([]);
   const localVideoRef = useRef();
-  const remoteVideoContainerRef = useRef();
+  const remoteVideosRef = useRef();
 
   useEffect(() => {
-    const connectToRoom = async () => {
+    let room;
+
+    const connect = async () => {
       try {
-        // 1. Fetch Access Token from your API
+        // 1. Get Access Token from your API
         const response = await fetch('/api/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identity, room: roomName }),
         });
 
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error('API Error:', errorData);
-          throw new Error(`API Error: ${response.status} - ${errorData}`);
-        }
-
+        if (!response.ok) throw new Error('Failed to get token');
         const { token } = await response.json();
 
-        if (!token) {
-          throw new Error('Failed to get token');
-        }
-
-        // 2. Connect to Twilio Room
-        const room = await Video.connect(token, {
+        // 2. Connect to Room
+        room = await Video.connect(token, {
           audio: true,
           video: { width: 640, height: 480 },
         });
 
-        setRoom(room);
+        setIsConnected(true);
 
-        // 3. Attach Local Video
-        if (room.localParticipant.videoTracks.size > 0) {
-          const track = Array.from(room.localParticipant.videoTracks.values())[0].track;
-          localVideoRef.current.appendChild(track.attach());
-        }
+        // 3. Show Local Video
+        room.localParticipant.videoTracks.forEach((track) => {
+          const el = track.track.attach();
+          localVideoRef.current.appendChild(el);
+        });
 
-        // 4. Handle Remote Participants
-        const participantConnected = (participant) => {
+        // 4. Show Remote Participants
+        const addParticipant = (participant) => {
           setParticipants((prev) => [...prev, participant]);
-          participant.on('trackSubscribed', track => {
-            const videoElement = track.attach();
-            remoteVideoContainerRef.current.appendChild(videoElement);
+
+          participant.on('trackSubscribed', (track) => {
+            const el = track.attach();
+            remoteVideosRef.current.appendChild(el);
+          });
+
+          participant.on('trackUnsubscribed', (track) => {
+            track.detach().forEach(el => el.remove());
           });
         };
 
-        const participantDisconnected = (participant) => {
+        room.participants.forEach(addParticipant);
+        room.on('participantConnected', addParticipant);
+
+        room.on('participantDisconnected', (participant) => {
           setParticipants((prev) => prev.filter(p => p !== participant));
           // Clean up video elements if needed
-        };
+        });
 
-        room.on('participantConnected', participantConnected);
-        room.on('participantDisconnected', participantDisconnected);
-
-        room.participants.forEach(participantConnected);
-
-        // 5. Cleanup on unmount
-        return () => {
-          room.disconnect();
-        };
-      } catch (error) {
-        console.error('Error connecting to room:', error);
+      } catch (err) {
+        console.error('Connection failed:', err);
+        alert('Failed to join call');
       }
     };
 
-    connectToRoom();
+    connect();
+
+    // Cleanup on unmount
+    return () => {
+      if (room) {
+        room.disconnect();
+        setIsConnected(false);
+      }
+    };
   }, [roomName, identity]);
 
-  const leaveRoom = () => {
-    if (room) {
-      room.disconnect();
-      setRoom(null);
-      onLeave();
-    }
-  };
-
   return (
-    <div>
+    <div style={{ padding: '20px', background: '#f0f0f0' }}>
       <h2>Room: {roomName}</h2>
-      <div ref={localVideoRef} style={{ border: '2px solid blue', margin: '10px' }}></div>
-      <div ref={remoteVideoContainerRef} style={{ display: 'flex', flexWrap: 'wrap' }}></div>
-      <button onClick={leaveRoom}>Leave Room</button>
+      <h3>You ({identity})</h3>
+      <div
+        ref={localVideoRef}
+        style={{
+          width: '320px',
+          height: '240px',
+          border: '3px solid blue',
+          margin: '10px',
+          background: '#000',
+        }}
+      ></div>
+
+      <h3>Others ({participants.length})</h3>
+      <div
+        ref={remoteVideosRef}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '10px',
+        }}
+      ></div>
+
+      <button onClick={onLeave} style={{ marginTop: '20px', padding: '10px 20px' }}>
+        Leave Call
+      </button>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { RxHamburgerMenu } from "react-icons/rx";
 import toast, { Toaster } from "react-hot-toast";
 import { FcVideoCall } from "react-icons/fc";
 import { IoIosCall } from "react-icons/io";
+import { IoClose } from "react-icons/io5";
 
 
 export default function page() {
@@ -143,6 +144,11 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
+  // close user list function
+  const handleCloseUserList = () => {
+    setShowUserList(false);
+  }
+
   // Auto scroll when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -263,13 +269,13 @@ export default function page() {
 
   // end video call function
   const handleEndVideoCall = () => {
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-        const stream = localVideoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-        localVideoRef.current.srcObject = null;
-      }
-      setShowVideoCallPopup(false);
-      setError(null);
+    if (localVideoRef.current && localVideoRef.current.srcObject) {
+      const stream = localVideoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      localVideoRef.current.srcObject = null;
+    }
+    setShowVideoCallPopup(false);
+    setError(null);
 
   }
 
@@ -287,79 +293,117 @@ export default function page() {
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-pink-100 via-white to-blue-100 font-sans">
       {/* Header */}
-      <div className="flex flex-col">
-        <div className="flex justify-between items-center px-6 py-4 bg-white shadow-lg">
-          <div className="flex flex-row justify-center items-center text-lg font-semibold text-gray-800">
+      <div className="flex flex-col w-full">
+        <div className="flex justify-between items-center px-3 sm:px-6 py-3 sm:py-4 bg-white shadow-sm">
+          {/* Left: Welcome + Avatar + Name — Truncated aggressively on mobile */}
+          <div className="flex items-center space-x-1.5 min-w-0 flex-1">
             {user ? (
-              <span className="flex justify-center items-center overflow-hidden text-ellipsis whitespace-nowrap">
-                <span className="text-pink-600">Welcome,</span>{" "}
-                <span className="w-8 h-8 rounded-full bg-gradient-to-tr mx-1 from-pink-400 via-purple-400 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg">
+              <>
+                <span className="text-pink-600 text-xs sm:text-sm font-medium whitespace-nowrap">Welcome,</span>
+                <span
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-pink-400 via-purple-400 to-blue-500 
+                       flex items-center justify-center text-white text-[10px] sm:text-xs font-bold shadow shrink-0"
+                  aria-label="User avatar"
+                >
                   {user?.user_metadata.full_name
                     ? user.user_metadata.full_name.charAt(0).toUpperCase()
                     : "U"}
                 </span>
-                {user.user_metadata.full_name}
-              </span>
+                <span className="hidden sm:block truncate font-medium text-gray-800 text-sm">
+                  {user.user_metadata.full_name || "User"}
+                </span>
+                <span className="sm:hidden font-medium text-gray-800 text-xs">
+                  {user.user_metadata.full_name}
+                </span>
+              </>
             ) : (
-              "Loading..."
+              <span className="text-gray-500 text-xs">Loading...</span>
             )}
           </div>
-          <div>
-            <button
-              onClick={() => setShowEditProfilePopup(!showEditProfilePopup)}
-              className="px-5 py-2 bg-gradient-to-r from-pink-600 to-pink-800 text-white rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 transition mr-3"
-            >
-              Edit Profile
-            </button>
 
-            {showEditProfilePopup && (
-              <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50">
-                <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
-                  <h2 className="text-xl font-semibold mb-4">Edit Profile</h2>
-                  <form onSubmit={handleEditProfile}>
-                    <label className="block mb-2">
-                      Full Name:
-                      <input
-                        type="text"
-                        defaultValue={user?.user_metadata.full_name || ""}
-                        className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-400"
-                      />
-                    </label>
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-gradient-to-r from-pink-600 to-pink-800 text-white rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 transition mr-3"
-                      > Save Changes </button>
-                      <button
-                        onClick={() => setShowEditProfilePopup(false)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-full shadow-md hover:bg-red-500 transition"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
+          <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+            <button
+              onClick={() => setShowEditProfilePopup(true)}
+              className="px-2.5 py-1.5 text-[10px] sm:text-xs sm:px-3 sm:py-2 font-medium bg-gradient-to-r from-pink-600 to-pink-800 text-white 
+                   rounded-full shadow-sm hover:from-pink-500 hover:to-pink-700 active:scale-95 
+                   transition whitespace-nowrap min-w-[64px] sm:min-w-[88px]"
+              aria-label="Edit Profile"
+            >
+              <span>Edit</span>
+            </button>
 
             <button
               onClick={handleLogOut}
-              className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-800 text-white rounded-full shadow-md hover:from-amber-500 hover:to-amber-700 transition"
+              className="px-2.5 py-1.5 text-[10px] sm:text-xs sm:px-3 sm:py-2 font-medium bg-gradient-to-r from-amber-600 to-amber-800 text-white 
+                   rounded-full shadow-sm hover:from-amber-500 hover:to-amber-700 active:scale-95 
+                   transition whitespace-nowrap min-w-[64px] sm:min-w-[88px]"
+              aria-label="Logout"
             >
-              Logout
+              <span>Logout</span>
             </button>
           </div>
-
         </div>
+
+        {/* Edit Profile Popup — Mobile Safe (unchanged from previous, just included for completeness) */}
+        {showEditProfilePopup && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-start justify-center pt-16 sm:pt-0 z-50 p-4">
+            <div className="bg-white p-5 sm:p-6 rounded-xl shadow-xl w-full max-w-sm sm:max-w-md mx-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Edit Profile</h2>
+                <button
+                  onClick={() => setShowEditProfilePopup(false)}
+                  className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <form onSubmit={handleEditProfile}>
+                <label className="block mb-3">
+                  <span className="block text-sm font-medium text-gray-700 mb-1">Full Name</span>
+                  <input
+                    type="text"
+                    defaultValue={user?.user_metadata.full_name || ""}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 text-sm"
+                    placeholder="Enter your full name"
+                  />
+                </label>
+
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-pink-600 to-pink-800 text-white 
+                         rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 active:scale-95 transition"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditProfilePopup(false)}
+                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-200 text-gray-800 
+                         rounded-full shadow-md hover:bg-gray-300 active:scale-95 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* main content */}
       <div className="flex flex-1 gap-4 p-6 bg-white  rounded-xl shadow-xl m-4">
         {/* Left Sidebar */}
         <div className="hidden md:flex flex-col w-1/5 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
-          <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
-            Users
-          </h3>
+          <div>
+            <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+              Users
+            </h3>
+            <button onClick={handleCloseUserList} className="absolute top-3 right-3 text-gray-700 lg:hidden">
+              <IoClose size={20} />
+            </button>
+          </div>
           <div>
             {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
               .map((u) => (
@@ -386,9 +430,14 @@ export default function page() {
 
         {showUserList && (
           <div className="absolute lg:hidden sm:top-44 z-10 top-43 left-10 w-1/3 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
-            <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
-              Users
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+                Users
+              </h3>
+              <button onClick={handleCloseUserList} className="absolute top-3 right-3 text-gray-600 hover:text-gray-800">
+                <IoClose size={20} />
+              </button>
+            </div>
             <div>
               {usersList.filter((u) => u.id !== user?.id)
 
@@ -418,96 +467,124 @@ export default function page() {
         {/* Main Chat Area */}
         <div className="flex flex-col justify-between flex-1 rounded-lg border border-gray-300 bg-gray-50 shadow-inner">
           {/* Chat Header */}
-          <div className="flex justify-between bg-gradient-to-r from-gray-200 to-gray-300 py-4 px-6 border-b border-gray-400 rounded-t-lg">
-            <div onClick={handleShowUserList} className="text-gray-600 font-bold block lg:hidden">
-              <RxHamburgerMenu className="inline mr-1" size={22} />
+          <div className="flex items-center justify-between bg-gradient-to-r from-gray-100 to-gray-200 py-3 px-4 border-b border-gray-300 sm:rounded-t-lg">
+            {/* Left: Hamburger Menu (mobile only) */}
+            <div onClick={handleShowUserList} className="text-gray-700 lg:hidden">
+              <RxHamburgerMenu size={20} />
             </div>
-            <h2 className="text-lg font-semibold text-gray-800">
-              Chat with{" "}
-              {userToChat ? (
-                <span className="bg-gradient-to-br px-3 py-1 rounded-lg text-shadow-red-900 italic bg-fuchsia-300 shadow truncate w-full">
-                  {userToChat.full_name}
-                </span>
-              ) : (
-                <span className="text-red-500 italic">Select a user</span>
-              )}
-            </h2>
-            <div className="flex items-center gap-3 relative">
 
-              {/* audio and video area  */}
-              <div className="text-gray-600 font-bold">
-                <div className="relative group inline-block">
-                  <FcVideoCall
-                    className="mr-4 cursor-pointer"
-                    size={28}
-                    onClick={handleVidoeCall}
-                  />
-                  <span className="absolute bottom-full mb-2 hidden group-hover:block text-xs bg-gray-700 text-white px-2 py-1 rounded shadow-lg">
-                    Video Call
+            {/* Center: Chat Title (Truncated gracefully) */}
+            <div className="flex-1 mx-2 sm:mx-4 overflow-hidden">
+              <h2 className="text-sm sm:text-base font-medium text-gray-800 text-center whitespace-nowrap overflow-hidden text-ellipsis px-1">
+                Chat with{" "}
+                {userToChat ? (
+                  <span className="bg-gradient-to-br from-fuchsia-300 to-pink-200 text-fuchsia-900 px-2 py-1 rounded-md text-xs sm:text-sm font-medium shadow-sm truncate inline-block align-middle max-w-[120px] sm:max-w-[180px]">
+                    {userToChat.full_name}
                   </span>
-                </div>
-                {/* popup for video call */}
-                {showVideoCallPopup && (
-                  <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50 sm:flex flex-col">
-                    <div className="flex flex-col items-center justify-center min-h-screen text-white w-full">
-                      <h2 className="text-2xl font-bold mb-4">Video Call with {userToChat?.full_name}</h2>
-                      {error && <p className="text-red-500 mb-4">{error}</p>}
-                      <div className="flex flex-col md:flex-row gap-6">
-                        <div className="flex flex-col items-center">
-                          <h3 className="mb-2 text-gray-500">You</h3>
-                          <video
-                            ref={localVideoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-96 h-80 bg-black rounded-lg shadow-lg transform scale-x-[-1]"
-                          />
-                        </div>
-                        {/* Remote video placeholder */}
-                        <div className="flex flex-col items-center">
-                          <h3 className="mb-2 text-gray-500">Remote User</h3>
-                          <div className="w-96 h-80 bg-gray-700 rounded-lg shadow-lg flex items-center justify-center text-sm">
-                            Remote Video to {userToChat?.full_name}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleEndVideoCall}
-                        className="mt-6 px-6 py-2 bg-red-600 text-white rounded-full shadow-md hover:bg-red-500 transition"
-                      >
-                        End Call
-                      </button>
-                    </div>
-                    <div className="absolute top-4 right-4">
-                      <button
-                        onClick={handleEndVideoCall}
-                        className="text-gray-800 hover:text-gray-600"
-                      >
-                        &#10005;
-                      </button>
-                    </div>
+                ) : (
+                  <span className="text-red-500 italic text-xs">Select a user</span>
+                )}
+              </h2>
+            </div>
+
+            {/* Right: Action Icons (Always inline, compressed on mobile) */}
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              {/* Video Call */}
+              <div className="group relative">
+                <FcVideoCall
+                  size={22}
+                  className="cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+                  onClick={handleVidoeCall}
+                />
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md">
+                  Video Call
+                </span>
+              </div>
+
+              {/* Audio Call */}
+              <div className="group relative">
+                <IoIosCall
+                  size={20}
+                  className="cursor-pointer hover:scale-110 active:scale-95 transition-transform text-gray-700"
+                  onClick={handleAudioCall}
+                />
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md">
+                  Audio Call
+                </span>
+              </div>
+
+              {/* More Menu */}
+              <div className="group relative" onClick={userDetailList}>
+                <RiMore2Fill
+                  size={20}
+                  className="cursor-pointer text-gray-700 hover:text-gray-900 active:scale-95 transition"
+                />
+                {showUserDetailButton && (
+                  <div className="absolute top-8 right-0 w-28 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-10">
+                    <button
+                      onClick={showUserDetails}
+                      className="block w-full text-left text-sm text-gray-800 hover:bg-gray-100 px-2 py-1.5 rounded"
+                    >
+                      View Details
+                    </button>
                   </div>
                 )}
-                <div className="relative group inline-block">
-                  <IoIosCall
-                    className="mr-4 cursor-pointer"
-                    size={26}
-                    onClick={handleAudioCall}
-                  />
-                  <span className="absolute bottom-full mb-2 hidden group-hover:block text-xs bg-gray-700 text-white px-2 py-1 rounded shadow-lg">
-                    Audio Call
-                  </span>
-                </div>              </div>
-              <p onClick={userDetailList} className="text-sm text-gray-600 hover:">
-                <RiMore2Fill className="inline mr-1" size={22} />
-              </p>
-              {showUserDetailButton && (
-                <div onClick={showUserDetails} className="absolute w-28 bg-white border border-gray-300 rounded-lg shadow-lg p-2">
-                  <h3 className="text-black">View Details</h3>
-                </div>
-              )}
+              </div>
             </div>
           </div>
+
+          {/* Video Call Popup (unchanged, but centered & mobile-safe) */}
+          {showVideoCallPopup && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center z-50 p-4">
+              <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl p-4 sm:p-6 flex flex-col items-center">
+                <div className="absolute top-3 right-3">
+                  <button
+                    onClick={handleEndVideoCall}
+                    className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 text-center">
+                  Video Call with {userToChat?.full_name}
+                </h2>
+
+                {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
+
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full max-w-4xl">
+                  {/* Local Video */}
+                  <div className="flex flex-col items-center flex-1">
+                    <h3 className="text-gray-600 text-sm mb-2">You</h3>
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full max-w-xs sm:max-w-sm h-48 sm:h-64 bg-black rounded-lg shadow-md transform scale-x-[-1]"
+                    />
+                  </div>
+
+                  {/* Remote Video Placeholder */}
+                  <div className="flex flex-col items-center flex-1">
+                    <h3 className="text-gray-600 text-sm mb-2">Remote</h3>
+                    <div className="w-full max-w-xs sm:max-w-sm h-48 sm:h-64 bg-gray-800 rounded-lg shadow-md flex items-center justify-center">
+                      <p className="text-gray-300 text-xs sm:text-sm text-center px-2">
+                        Connecting to {userToChat?.full_name}...
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleEndVideoCall}
+                  className="mt-6 px-6 py-2.5 bg-red-600 text-white font-medium rounded-full shadow-md hover:bg-red-500 active:scale-95 transition transform"
+                >
+                  End Call
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Chat Messages */}
           <div className="flex flex-col text-gray-700 h-[500px]">
