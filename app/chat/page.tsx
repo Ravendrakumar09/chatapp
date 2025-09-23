@@ -10,7 +10,6 @@ import { FcVideoCall } from "react-icons/fc";
 import { IoIosCall } from "react-icons/io";
 
 
-
 export default function page() {
   const [user, setUser] = useState<null | User>(null);
   const router = useRouter();
@@ -25,6 +24,9 @@ export default function page() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [messageCounter, setMessageCounter] = useState(0);
   const [showEditProfilePopup, setShowEditProfilePopup] = useState(false);
+  const [showVideoCallPopup, setShowVideoCallPopup] = useState(false);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
 
   //  for user 
@@ -235,13 +237,42 @@ export default function page() {
   }
 
   // video call function
-  const handleVidoeCall = () => {
+  const handleVidoeCall = async () => {
+    // router.push("/videocall");
     if (!userToChat) {
       toast.error("Please select a user to call");
       return;
+    } else {
+      setShowVideoCallPopup(true);
+      // Initialize camera when video call starts
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+      } catch (err: any) {
+        setError(err.message);
+      }
     }
-    toast.success(`Video feature is coming soon! ${userToChat?.full_name}`);
+    // toast.success(`Video feature is coming soon! ${userToChat?.full_name}`);
   }
+
+  // end video call function
+  const handleEndVideoCall = () => {
+      if (localVideoRef.current && localVideoRef.current.srcObject) {
+        const stream = localVideoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        localVideoRef.current.srcObject = null;
+      }
+      setShowVideoCallPopup(false);
+      setError(null);
+
+  }
+
 
   // logout function
   const handleLogOut = async () => {
@@ -339,7 +370,7 @@ export default function page() {
                 >
                   {notificationMessage === u.id ? (
                     <div className="flex flex-row justify-between items-center">
-                      <p className="text-gray-800 truncate w-full">{u.full_name} 
+                      <p className="text-gray-800 truncate w-full">{u.full_name}
                       </p>
                       <span className="bg-red-700 rounded-full w-7 h-6 ml-6 text-white shadow-2xl flex items-center justify-center text-sm">
                         {messageCounter}
@@ -415,6 +446,48 @@ export default function page() {
                     Video Call
                   </span>
                 </div>
+                {/* popup for video call */}
+                {showVideoCallPopup && (
+                  <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50 sm:flex flex-col">
+                    <div className="flex flex-col items-center justify-center min-h-screen text-white w-full">
+                      <h2 className="text-2xl font-bold mb-4">Video Call with {userToChat?.full_name}</h2>
+                      {error && <p className="text-red-500 mb-4">{error}</p>}
+                      <div className="flex flex-col md:flex-row gap-6">
+                        <div className="flex flex-col items-center">
+                          <h3 className="mb-2 text-gray-500">You</h3>
+                          <video
+                            ref={localVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-96 h-80 bg-black rounded-lg shadow-lg transform scale-x-[-1]"
+                          />
+                        </div>
+                        {/* Remote video placeholder */}
+                        <div className="flex flex-col items-center">
+                          <h3 className="mb-2 text-gray-500">Remote User</h3>
+                          <div className="w-96 h-80 bg-gray-700 rounded-lg shadow-lg flex items-center justify-center text-sm">
+                            Remote Video to {userToChat?.full_name}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleEndVideoCall}
+                        className="mt-6 px-6 py-2 bg-red-600 text-white rounded-full shadow-md hover:bg-red-500 transition"
+                      >
+                        End Call
+                      </button>
+                    </div>
+                    <div className="absolute top-4 right-4">
+                      <button
+                        onClick={handleEndVideoCall}
+                        className="text-gray-800 hover:text-gray-600"
+                      >
+                        &#10005;
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="relative group inline-block">
                   <IoIosCall
                     className="mr-4 cursor-pointer"

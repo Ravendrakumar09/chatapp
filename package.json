@@ -6,16 +6,20 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup": "node setup-env.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.4",
+    "jsonwebtoken": "^9.0.2",
     "next": "15.5.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",
-    "react-icons": "^5.5.0"
+    "react-icons": "^5.5.0",
+    "twilio": "^5.10.0",
+    "twilio-video": "^2.32.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
