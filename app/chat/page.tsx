@@ -47,8 +47,22 @@ export default function page() {
 
   // for edit profile
   const handleEditProfile = async () => {
-    console.log("Edit profile clicked");
     setShowEditProfilePopup(true);
+
+    const supabase = createClient();
+    const fullNameInput = user?.user_metadata.full_name || ""; 
+    const { data, error} = await supabase
+    .from('profiles')
+    .update({ full_name: fullNameInput })
+    .eq('id', user?.id);
+    console.log("Profile updated:", data);
+    if (error) {
+      // toast.error(error.message);
+      console.error("Error updating profile:", error);
+    }else {
+      // toast.success("Profile updated successfully");
+      console.log("Profile updated successfully: ", data)
+    }
 
   }
 
@@ -245,6 +259,9 @@ export default function page() {
   // video call function
   const handleVidoeCall = async () => {
     // router.push("/videocall");
+     // router.push(
+    //   `/videocall?userId=${user.id}&userToChatId=${userToChat.id}&userName=${encodeURIComponent(user?.user_metadata.full_name)}&chatName=${encodeURIComponent(userToChat.full_name)}`
+    // ); 
     if (!userToChat) {
       toast.error("Please select a user to call");
       return;
@@ -292,7 +309,7 @@ export default function page() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-pink-100 via-white to-blue-100 font-sans">
-      {/* Header */}
+      {/* main Header */}
       <div className="flex flex-col w-full">
         <div className="flex justify-between items-center px-3 sm:px-6 py-3 sm:py-4 bg-white shadow-sm">
           {/* Left: Welcome + Avatar + Name — Truncated aggressively on mobile */}
@@ -344,9 +361,9 @@ export default function page() {
           </div>
         </div>
 
-        {/* Edit Profile Popup — Mobile Safe (unchanged from previous, just included for completeness) */}
+        {/* Edit Profile Popup — Mobile Safe */}
         {showEditProfilePopup && (
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-start justify-center pt-16 sm:pt-0 z-50 p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center pt-16 sm:pt-0 z-50 p-4">
             <div className="bg-white p-5 sm:p-6 rounded-xl shadow-xl w-full max-w-sm sm:max-w-md mx-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Edit Profile</h2>
@@ -370,20 +387,20 @@ export default function page() {
                 </label>
 
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-pink-600 to-pink-800 text-white 
-                         rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 active:scale-95 transition"
-                  >
-                    Save Changes
-                  </button>
-                  <button
+                   <button
                     type="button"
                     onClick={() => setShowEditProfilePopup(false)}
                     className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-200 text-gray-800 
                          rounded-full shadow-md hover:bg-gray-300 active:scale-95 transition"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-pink-600 to-pink-800 text-white 
+                         rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 active:scale-95 transition"
+                  >
+                    Save Changes
                   </button>
                 </div>
               </form>
@@ -400,9 +417,6 @@ export default function page() {
             <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
               Users
             </h3>
-            <button onClick={handleCloseUserList} className="absolute top-3 right-3 text-gray-700 lg:hidden">
-              <IoClose size={20} />
-            </button>
           </div>
           <div>
             {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
@@ -427,7 +441,7 @@ export default function page() {
               ))}
           </div>
         </div>
-
+        {/* This is only for mobile user list */}
         {showUserList && (
           <div className="absolute lg:hidden sm:top-44 z-10 top-43 left-10 w-1/3 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
             <div className="flex justify-between items-center">
@@ -520,7 +534,7 @@ export default function page() {
                   className="cursor-pointer text-gray-700 hover:text-gray-900 active:scale-95 transition"
                 />
                 {showUserDetailButton && (
-                  <div className="absolute top-8 right-0 w-28 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-10">
+                  <div className="absolute top-8 -right-4 max-w-fit bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-10">
                     <button
                       onClick={showUserDetails}
                       className="block w-full text-left text-sm text-gray-800 hover:bg-gray-100 px-2 py-1.5 rounded"

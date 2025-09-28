@@ -1,17 +1,32 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import * as Video from "twilio-video";
+import { useSearchParams } from "next/navigation";
 
 export default function CallPage() {
+  const searchParam = useSearchParams();
+  const user = searchParam.get("userId");
+  const userToChat = searchParam.get("userToChatId");
+  const userName = searchParam.get("userName");
+  const userToChatName = searchParam.get("chatName");
+
   const [room, setRoom] = useState<Video.Room | null>(null);
   const [participants, setParticipants] = useState<Video.RemoteParticipant[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState("test-room");
   const [identity, setIdentity] = useState("user-" + Math.random().toString(36).substr(2, 9));
+
+  const [videoUser, setVideoUser] = useState(userName || "");
+  const [videoUserToChat, setVideoUserToChat] = useState(userToChatName || "");
+  
+  console.log("participant:")
+
+  console.log("UserID:--", user, "userToChat:--", userToChat);
   
   const localVideoRef = useRef<HTMLDivElement>(null);
   const remoteVideoContainerRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     return () => {
@@ -20,6 +35,7 @@ export default function CallPage() {
       }
     };
   }, [room]);
+
 
   const connectToRoom = async () => {
     try {
@@ -64,6 +80,8 @@ export default function CallPage() {
 
       setRoom(newRoom);
       setIsConnected(true);
+      setVideoUser(userName || "")
+      setVideoUserToChat(videoUserToChat || "")
 
       // 3. Attach Local Video
       if (newRoom.localParticipant.videoTracks.size > 0) {
@@ -75,6 +93,7 @@ export default function CallPage() {
 
       // 4. Handle Remote Participants
       const participantConnected = (participant: Video.RemoteParticipant) => {
+        console.log(" participant :--",participant)
         setParticipants(prev => [...prev, participant]);
         
         participant.on('trackSubscribed', (track: Video.RemoteTrack) => {
@@ -85,7 +104,9 @@ export default function CallPage() {
         });
 
         participant.on('trackUnsubscribed', (track: Video.RemoteTrack) => {
-          track.detach().forEach(element => element.remove());
+          if ('detach' in track && typeof track.detach === 'function') {
+            track.detach().forEach(element => element.remove());
+          }
         });
       };
 
@@ -152,7 +173,17 @@ export default function CallPage() {
               <label className="block text-sm font-medium mb-2">Your Name:</label>
               <input
                 type="text"
-                value={identity}
+                value={videoUser || ""}
+                onChange={(e) => setIdentity(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Participent Name:</label>
+              <input
+                type="text"
+                value={userToChatName || ""}
                 onChange={(e) => setIdentity(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter your name"
