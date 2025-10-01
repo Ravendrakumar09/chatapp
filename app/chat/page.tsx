@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 import { RiMore2Fill } from "react-icons/ri";
 import { RxHamburgerMenu } from "react-icons/rx";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
+import { FcVideoCall } from "react-icons/fc";
+import { IoIosCall } from "react-icons/io";
+import { IoClose } from "react-icons/io5";
+import { FaFileUpload } from "react-icons/fa";
+import { MdAddAPhoto } from "react-icons/md";
+import VideoCallModal from "@/app/components/VideoCallModal";
+import IncomingCallModal from "@/app/components/IncomingCallModal";
+import { useVideoCallNotifications } from "@/app/hooks/useVideoCallNotifications";
+import { generateUniqueIdentity, generateUniqueRoomName } from "@/app/utils/identityGenerator";
+
 
 
 export default function page() {
@@ -20,6 +30,26 @@ export default function page() {
   const [showUserList, setShowUserList] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [messageCounter, setMessageCounter] = useState(0);
+  const [showEditProfilePopup, setShowEditProfilePopup] = useState(false);
+  const [showVideoCallPopup, setShowVideoCallPopup] = useState(false);
+  const [currentVideoCall, setCurrentVideoCall] = useState<{
+    roomName: string;
+    identity: string;
+    participantName: string;
+    notificationId?: string;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Video call notifications
+  const {
+    incomingCall,
+    sendVideoCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    clearIncomingCall,
+  } = useVideoCallNotifications(user?.id || null);
 
 
   //  for user 
@@ -36,6 +66,27 @@ export default function page() {
     };
     getUser();
   }, []);
+
+  // for edit profile
+  const handleEditProfile = async () => {
+    setShowEditProfilePopup(true);
+
+    const supabase = createClient();
+    const fullNameInput = user?.user_metadata.full_name || "";
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ full_name: fullNameInput })
+      .eq('id', user?.id);
+    console.log("Profile updated:", data);
+    if (error) {
+      // toast.error(error.message);
+      console.error("Error updating profile:", error);
+    } else {
+      // toast.success("Profile updated successfully");
+      console.log("Profile updated successfully: ", data)
+    }
+
+  }
 
   // for users list
   useEffect(() => {
@@ -129,6 +180,11 @@ export default function page() {
     setShowUserList(!showUserList);
   }
 
+  // close user list function
+  const handleCloseUserList = () => {
+    setShowUserList(false);
+  }
+
   // Auto scroll when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -163,6 +219,7 @@ export default function page() {
             setMessages((prev) => [...prev, payload.new]);
           } else {
             notification(payload.new.sender_id); // call for notification function
+
             console.log("❌ Message not for this chat, ignoring");
 
           }
@@ -195,20 +252,148 @@ export default function page() {
     localStorage.setItem("selectedUser", JSON.stringify(u)); // save in localStorage
     setShowUserList(false); // hide user list on mobile after selecting a user
     setNotificationMessage(""); // clear notification on selecting user
+    setMessageCounter(0); // clear message counter on selecting user
   }
-
 
   // for notification
   const notification = (senderId: string) => {
     console.log("Notification from:", senderId);
     if (notificationMessage !== senderId) {
       setNotificationMessage(senderId);
+      setMessageCounter((prev) => prev + 1);
     }
     if (notificationMessage === senderId) {
       handleSelectUserToChat(senderId);
       setNotificationMessage("");
+      setMessageCounter(0);
     }
   };
+
+  // audio call function
+  const handleAudioCall = () => {
+    if (!userToChat) {
+      toast.error("Please select a user to call");
+      return;
+    }
+    toast.success(`Audio feature is coming soon! ${userToChat?.full_name}`);
+  }
+
+  // video call function
+  const handleVideoCall = async () => {
+    if (!userToChat) {
+      toast.error("Please select a user to call");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      // Generate unique room name and identity
+      const roomName = generateUniqueRoomName(user.id, userToChat.id);
+      const identity = generateUniqueIdentity(user.id);
+
+      console.log(`Initiating video call - Room: ${roomName}, Identity: ${identity}`);
+
+      // Send video call notification and get the notification ID
+      const notificationId = await sendVideoCall(userToChat.id, roomName);
+
+      // Start the video call
+      setCurrentVideoCall({
+        roomName,
+        identity,
+        participantName: userToChat.full_name,
+        notificationId,
+      });
+      setShowVideoCallPopup(true);
+
+      toast.success(`Calling ${userToChat.full_name}...`);
+    } catch (error: any) {
+      console.error('Error starting video call:', error);
+      toast.error('Failed to start video call');
+    }
+  }
+
+  // end video call function
+  const handleEndVideoCall = async () => {
+    if (currentVideoCall?.notificationId) {
+      // End the call notification
+      try {
+        await endCall(currentVideoCall.notificationId);
+      } catch (error) {
+        console.error('Error ending call notification:', error);
+      }
+    }
+    
+    setShowVideoCallPopup(false);
+    setCurrentVideoCall(null);
+    setError(null);
+  }
+
+  // Handle incoming call acceptance
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
+
+    try {
+      await acceptCall(incomingCall.id);
+      
+      // Generate unique identity for the accepting user
+      const identity = generateUniqueIdentity(user?.id || '');
+      
+      console.log(`Accepting video call - Room: ${incomingCall.room_name}, Identity: ${identity}`);
+      
+      setCurrentVideoCall({
+        roomName: incomingCall.room_name,
+        identity,
+        participantName: incomingCall.from_user_name || 'Unknown User',
+        notificationId: incomingCall.id,
+      });
+      setShowVideoCallPopup(true);
+      clearIncomingCall();
+    } catch (error) {
+      console.error('Error accepting call:', error);
+      toast.error('Failed to accept call');
+    }
+  }
+
+  // Handle incoming call rejection
+  const handleRejectCall = async () => {
+    if (!incomingCall) return;
+
+    try {
+      await rejectCall(incomingCall.id);
+      clearIncomingCall();
+    } catch (error) {
+      console.error('Error rejecting call:', error);
+      toast.error('Failed to reject call');
+    }
+  }
+
+  // upload file function
+  const handleUploadFile = async (e: any) => {
+    e.stopPropagation();
+    console.log("File upload clicked");
+    const supabase = createClient();
+    const file = await supabase.storage
+      .from('chatfiles')
+      .upload('public/your-file.txt', e.target.files[0], {
+        cacheControl: '3600',
+        upsert: false
+      });
+    if (file.error) {
+      console.error("Error uploading file:", file.error);
+    } else {
+      console.log("File uploaded successfully:", file.data);
+    }
+  }
+  
+  // upload photo function
+  const handleUploadPhoto = () => {
+    console.log("Photo upload clicked");
+  }
+
 
   // logout function
   const handleLogOut = async () => {
@@ -222,35 +407,115 @@ export default function page() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-pink-100 via-white to-blue-100 font-sans">
-      {/* Header */}
-      <div className="flex flex-col">
-        <div className="flex justify-between items-center px-6 py-4 bg-white shadow-lg">
-          <div className="text-lg font-semibold text-gray-800">
+      {/* main Header */}
+      <div className="flex flex-col w-full">
+        <div className="flex justify-between items-center px-3 sm:px-6 py-3 sm:py-4 bg-white shadow-sm">
+          {/* Left: Welcome + Avatar + Name — Truncated aggressively on mobile */}
+          <div className="flex items-center space-x-1.5 min-w-0 flex-1">
             {user ? (
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                <span className="text-pink-600">Welcome,</span>{" "}
-                {user.user_metadata.full_name}
-              </span>
+              <>
+                <span className="text-pink-600 text-xs sm:text-sm font-medium whitespace-nowrap">Welcome,</span>
+                <span
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-pink-400 via-purple-400 to-blue-500 
+                       flex items-center justify-center text-white text-[10px] sm:text-xs font-bold shadow shrink-0"
+                  aria-label="User avatar"
+                >
+                  {user?.user_metadata.full_name
+                    ? user.user_metadata.full_name.charAt(0).toUpperCase()
+                    : "U"}
+                </span>
+                <span className="hidden sm:block truncate font-medium text-gray-800 text-sm">
+                  {user.user_metadata.full_name || "User"}
+                </span>
+                <span className="sm:hidden font-medium text-gray-800 text-xs">
+                  {user.user_metadata.full_name}
+                </span>
+              </>
             ) : (
-              "Loading..."
+              <span className="text-gray-500 text-xs">Loading...</span>
             )}
           </div>
-          <button
-            onClick={handleLogOut}
-            className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-800 text-white rounded-full shadow-md hover:from-amber-500 hover:to-amber-700 transition"
-          >
-            Logout
-          </button>
+
+          <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+            <button
+              onClick={() => setShowEditProfilePopup(true)}
+              className="px-2.5 py-1.5 text-[10px] sm:text-xs sm:px-3 sm:py-2 font-medium bg-gradient-to-r from-pink-600 to-pink-800 text-white 
+                   rounded-full shadow-sm hover:from-pink-500 hover:to-pink-700 active:scale-95 
+                   transition whitespace-nowrap min-w-[64px] sm:min-w-[88px]"
+              aria-label="Edit Profile"
+            >
+              <span>Edit</span>
+            </button>
+
+            <button
+              onClick={handleLogOut}
+              className="px-2.5 py-1.5 text-[10px] sm:text-xs sm:px-3 sm:py-2 font-medium bg-gradient-to-r from-amber-600 to-amber-800 text-white 
+                   rounded-full shadow-sm hover:from-amber-500 hover:to-amber-700 active:scale-95 
+                   transition whitespace-nowrap min-w-[64px] sm:min-w-[88px]"
+              aria-label="Logout"
+            >
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
+
+        {/* Edit Profile Popup — Mobile Safe */}
+        {showEditProfilePopup && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center pt-16 sm:pt-0 z-50 p-4">
+            <div className="bg-white p-5 sm:p-6 rounded-xl shadow-xl w-full max-w-sm sm:max-w-md mx-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Edit Profile</h2>
+                <button
+                  onClick={() => setShowEditProfilePopup(false)}
+                  className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <form onSubmit={handleEditProfile}>
+                <label className="block mb-3">
+                  <span className="block text-sm font-medium text-gray-700 mb-1">Full Name</span>
+                  <input
+                    type="text"
+                    defaultValue={user?.user_metadata.full_name || ""}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 text-sm"
+                    placeholder="Enter your full name"
+                  />
+                </label>
+
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditProfilePopup(false)}
+                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-200 text-gray-800 
+                         rounded-full shadow-md hover:bg-gray-300 active:scale-95 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-pink-600 to-pink-800 text-white 
+                         rounded-full shadow-md hover:from-pink-500 hover:to-pink-700 active:scale-95 transition"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* main content */}
       <div className="flex flex-1 gap-4 p-6 bg-white  rounded-xl shadow-xl m-4">
         {/* Left Sidebar */}
         <div className="hidden md:flex flex-col w-1/5 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
-          <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
-            Users
-          </h3>
+          <div>
+            <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+              Users
+            </h3>
+          </div>
           <div>
             {usersList.filter((u) => u.full_name !== user?.user_metadata?.full_name)
               .map((u) => (
@@ -260,8 +525,12 @@ export default function page() {
                   className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                 >
                   {notificationMessage === u.id ? (
-                    <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl">
-                      <p className="text-gray-800 bg-red-600 rounded-2xl truncate w-full">{u.full_name}</p>
+                    <div className="flex flex-row justify-between items-center">
+                      <p className="text-gray-800 truncate w-full">{u.full_name}
+                      </p>
+                      <span className="bg-red-700 rounded-full w-7 h-6 ml-6 text-white shadow-2xl flex items-center justify-center text-sm">
+                        {messageCounter}
+                      </span>
                     </div>
                   ) : (
                     <p className="text-gray-800 truncate w-full">{u.full_name}</p>
@@ -270,12 +539,17 @@ export default function page() {
               ))}
           </div>
         </div>
-
+        {/* This is only for mobile user list */}
         {showUserList && (
           <div className="absolute lg:hidden sm:top-44 z-10 top-43 left-10 w-1/3 rounded-lg border border-gray-300 bg-gradient-to-br from-pink-300 via-white to-blue-200 shadow-inner overflow-y-auto">
-            <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
-              Users
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="px-4 py-3 text-gray-700 font-bold border-b border-gray-300">
+                Users
+              </h3>
+              <button onClick={handleCloseUserList} className="absolute top-3 right-3 text-gray-600 hover:text-gray-800">
+                <IoClose size={20} />
+              </button>
+            </div>
             <div>
               {usersList.filter((u) => u.id !== user?.id)
 
@@ -286,8 +560,12 @@ export default function page() {
                     className="px-4 py-2 border-b border-gray-200 cursor-pointer bg-white/50 hover:bg-pink-100 transition rounded-md m-2 shadow-sm"
                   >
                     {notificationMessage === u.id ? (
-                      <div className="text-center text-sm text-red-600 font-bold animate-bounce rounded-2xl p-1">
-                        <p className="text-gray-800 bg-red-600 truncate w-full rounded-2xl p-1">{u.full_name}</p>
+                      <div className="flex flex-row justify-between items-center">
+                        <p className="text-gray-800 truncate w-full">{u.full_name}
+                        </p>
+                        <span className="flex justify-center items-center bg-red-700 rounded-full w-7 h-6 ml-2 text-white shadow-2xl text-sm">
+                          {messageCounter}
+                        </span>
                       </div>
                     ) : (
                       <p className="text-gray-800 truncate w-full">{u.full_name}</p>
@@ -301,31 +579,93 @@ export default function page() {
         {/* Main Chat Area */}
         <div className="flex flex-col justify-between flex-1 rounded-lg border border-gray-300 bg-gray-50 shadow-inner">
           {/* Chat Header */}
-          <div className="flex justify-between bg-gradient-to-r from-gray-200 to-gray-300 py-4 px-6 border-b border-gray-400 rounded-t-lg">
-            <div onClick={handleShowUserList} className="text-gray-600 font-bold block lg:hidden">
-              <RxHamburgerMenu className="inline mr-1" size={22} />
+          <div className="flex items-center justify-between bg-gradient-to-r from-gray-100 to-gray-200 py-3 px-4 border-b border-gray-300 sm:rounded-t-lg">
+            {/* Left: Hamburger Menu (mobile only) */}
+            <div onClick={handleShowUserList} className="text-gray-700 lg:hidden">
+              <RxHamburgerMenu size={20} />
             </div>
-            <h2 className="text-lg font-semibold text-gray-800">
-              Chat with{" "}
-              {userToChat ? (
-                <span className="bg-gradient-to-br px-3 py-1 rounded-lg text-shadow-red-900 italic bg-fuchsia-300 shadow truncate w-full">
-                  {userToChat.full_name}
+
+            {/* Center: Chat Title (Truncated gracefully) */}
+            <div className="flex-1 mx-2 sm:mx-4 overflow-hidden">
+              <h2 className="text-sm sm:text-base font-medium text-gray-800 text-center whitespace-nowrap overflow-hidden text-ellipsis px-1">
+                Chat with{" "}
+                {userToChat ? (
+                  <span className="bg-gradient-to-br from-fuchsia-300 to-pink-200 text-fuchsia-900 px-2 py-1 rounded-md text-xs sm:text-sm font-medium shadow-sm truncate inline-block align-middle max-w-[120px] sm:max-w-[180px]">
+                    {userToChat.full_name}
+                  </span>
+                ) : (
+                  <span className="text-red-500 italic text-xs">Select a user</span>
+                )}
+              </h2>
+            </div>
+
+            {/* Right: Action Icons (Always inline, compressed on mobile) */}
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              {/* Video Call */}
+              <div className="group relative">
+                <FcVideoCall
+                  size={22}
+                  className="cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+                  onClick={handleVideoCall}
+                />
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md">
+                  Video Call
                 </span>
-              ) : (
-                <span className="text-red-500 italic">Select a user</span>
-              )}
-            </h2>
-            <div>
-              <p onClick={userDetailList} className="text-sm text-gray-600 hover:">
-                <RiMore2Fill className="inline mr-1" size={22} />
-              </p>
-              {showUserDetailButton && (
-                <div onClick={showUserDetails} className="absolute w-28 bg-white border border-gray-300 rounded-lg shadow-lg p-2">
-                  <h3 className="text-black">View Details</h3>
-                </div>
-              )}
+              </div>
+
+              {/* Audio Call */}
+              <div className="group relative">
+                <IoIosCall
+                  size={20}
+                  className="cursor-pointer hover:scale-110 active:scale-95 transition-transform text-gray-700"
+                  onClick={handleAudioCall}
+                />
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md">
+                  Audio Call
+                </span>
+              </div>
+
+              {/* More Menu */}
+              <div className="group relative" onClick={userDetailList}>
+                <RiMore2Fill
+                  size={20}
+                  className="cursor-pointer text-gray-700 hover:text-gray-900 active:scale-95 transition"
+                />
+                {showUserDetailButton && (
+                  <div className="absolute top-8 -right-4 max-w-fit bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-10">
+                    <button
+                      onClick={showUserDetails}
+                      className="block w-full text-left text-sm text-gray-800 hover:bg-gray-100 px-2 py-1.5 rounded"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Video Call Modal */}
+          {showVideoCallPopup && currentVideoCall && (
+            <VideoCallModal
+              isOpen={showVideoCallPopup}
+              onClose={handleEndVideoCall}
+              roomName={currentVideoCall.roomName}
+              identity={currentVideoCall.identity}
+              participantName={currentVideoCall.participantName}
+              onCallEnd={handleEndVideoCall}
+            />
+          )}
+
+          {/* Incoming Call Modal */}
+          {incomingCall && (
+            <IncomingCallModal
+              isOpen={!!incomingCall}
+              callerName={incomingCall.from_user_name || 'Unknown User'}
+              onAccept={handleAcceptCall}
+              onReject={handleRejectCall}
+            />
+          )}
 
           {/* Chat Messages */}
           <div className="flex flex-col text-gray-700 h-[500px]">
@@ -344,8 +684,8 @@ export default function page() {
                     >
                       <div
                         className={`px-4 py-2 rounded-2xl max-w-xs break-words shadow-md ${isMe
-                            ? "bg-blue-500 text-white rounded-br-none"
-                            : "bg-gray-200 text-gray-800 rounded-bl-none"
+                          ? "bg-blue-500 text-white rounded-br-none"
+                          : "bg-gray-200 text-gray-800 rounded-bl-none"
                           }`}
                       >
                         <div className="flex flex-row gap-2 justify-center items-center">
@@ -363,31 +703,57 @@ export default function page() {
             </div>
           </div>
 
-
           {/* Input Box */}
           <div className="border-t border-gray-300 bg-white rounded-b-lg">
             <form onSubmit={handleSendMessage} className="flex items-center gap-3 px-4 py-3">
-              <input
-                type="text"
-                required
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
-              />
+              {/* Input container with relative positioning */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  required
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  className="w-full pl-4 pr-12 py-2 border border-gray-300 rounded-full text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
+                />
+                {/* Icons for file and photo inside input on the right */}
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 -translate-x-4  flex gap-4 text-xl text-gray-600 hover:text-gray-800 cursor-pointer">
+                <button>
+                  <input
+                    type="file"
+                    // ref={fileInputRef}
+                    className="hidden"
+                    accept="*/*"
+                  />
+                  <FaFileUpload  />
+                </button>
+                <button>
+                  <input
+                    type="file"
+                    // ref={photoInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                  />
+                  <MdAddAPhoto />
+                </button>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={!userToChat}
-                className={`px-5 py-2 rounded-full shadow-md transition 
-                ${userToChat
+                className={`px-5 py-2 rounded-full shadow-md transition ${userToChat
                     ? "bg-gradient-to-r from-amber-600 to-amber-800 text-white hover:from-amber-500 hover:to-amber-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
               >
                 Send
               </button>
-
             </form>
           </div>
+          {/* toast for audio and video call */}
+          <Toaster position="top-right" reverseOrder={false} />
         </div>
 
         {/* Right Sidebar */}
