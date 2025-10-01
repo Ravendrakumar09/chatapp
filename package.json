@@ -7,7 +7,11 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "setup": "node setup-env.js"
+    "setup": "node setup-env.js",
+    "setup-env": "node setup-environment.js",
+    "setup-db": "node setup-database.js",
+    "test-supabase": "echo 'Visit http://localhost:3000/test-supabase to test Supabase connection'",
+    "test-video": "echo 'Visit http://localhost:3000/test-video-calls to test video call functionality'"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

@@ -9,6 +9,13 @@ import toast, { Toaster } from "react-hot-toast";
 import { FcVideoCall } from "react-icons/fc";
 import { IoIosCall } from "react-icons/io";
 import { IoClose } from "react-icons/io5";
+import { FaFileUpload } from "react-icons/fa";
+import { MdAddAPhoto } from "react-icons/md";
+import VideoCallModal from "@/app/components/VideoCallModal";
+import IncomingCallModal from "@/app/components/IncomingCallModal";
+import { useVideoCallNotifications } from "@/app/hooks/useVideoCallNotifications";
+import { generateUniqueIdentity, generateUniqueRoomName } from "@/app/utils/identityGenerator";
+
 
 
 export default function page() {
@@ -26,8 +33,23 @@ export default function page() {
   const [messageCounter, setMessageCounter] = useState(0);
   const [showEditProfilePopup, setShowEditProfilePopup] = useState(false);
   const [showVideoCallPopup, setShowVideoCallPopup] = useState(false);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [currentVideoCall, setCurrentVideoCall] = useState<{
+    roomName: string;
+    identity: string;
+    participantName: string;
+    notificationId?: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Video call notifications
+  const {
+    incomingCall,
+    sendVideoCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    clearIncomingCall,
+  } = useVideoCallNotifications(user?.id || null);
 
 
   //  for user 
@@ -50,16 +72,16 @@ export default function page() {
     setShowEditProfilePopup(true);
 
     const supabase = createClient();
-    const fullNameInput = user?.user_metadata.full_name || ""; 
-    const { data, error} = await supabase
-    .from('profiles')
-    .update({ full_name: fullNameInput })
-    .eq('id', user?.id);
+    const fullNameInput = user?.user_metadata.full_name || "";
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ full_name: fullNameInput })
+      .eq('id', user?.id);
     console.log("Profile updated:", data);
     if (error) {
       // toast.error(error.message);
       console.error("Error updating profile:", error);
-    }else {
+    } else {
       // toast.success("Profile updated successfully");
       console.log("Profile updated successfully: ", data)
     }
@@ -257,43 +279,119 @@ export default function page() {
   }
 
   // video call function
-  const handleVidoeCall = async () => {
-    // router.push("/videocall");
-     // router.push(
-    //   `/videocall?userId=${user.id}&userToChatId=${userToChat.id}&userName=${encodeURIComponent(user?.user_metadata.full_name)}&chatName=${encodeURIComponent(userToChat.full_name)}`
-    // ); 
+  const handleVideoCall = async () => {
     if (!userToChat) {
       toast.error("Please select a user to call");
       return;
-    } else {
-      setShowVideoCallPopup(true);
-      // Initialize camera when video call starts
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-      } catch (err: any) {
-        setError(err.message);
-      }
     }
-    // toast.success(`Video feature is coming soon! ${userToChat?.full_name}`);
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      // Generate unique room name and identity
+      const roomName = generateUniqueRoomName(user.id, userToChat.id);
+      const identity = generateUniqueIdentity(user.id);
+
+      console.log(`Initiating video call - Room: ${roomName}, Identity: ${identity}`);
+
+      // Send video call notification and get the notification ID
+      const notificationId = await sendVideoCall(userToChat.id, roomName);
+
+      // Start the video call
+      setCurrentVideoCall({
+        roomName,
+        identity,
+        participantName: userToChat.full_name,
+        notificationId,
+      });
+      setShowVideoCallPopup(true);
+
+      toast.success(`Calling ${userToChat.full_name}...`);
+    } catch (error: any) {
+      console.error('Error starting video call:', error);
+      toast.error('Failed to start video call');
+    }
   }
 
   // end video call function
-  const handleEndVideoCall = () => {
-    if (localVideoRef.current && localVideoRef.current.srcObject) {
-      const stream = localVideoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      localVideoRef.current.srcObject = null;
+  const handleEndVideoCall = async () => {
+    if (currentVideoCall?.notificationId) {
+      // End the call notification
+      try {
+        await endCall(currentVideoCall.notificationId);
+      } catch (error) {
+        console.error('Error ending call notification:', error);
+      }
     }
+    
     setShowVideoCallPopup(false);
+    setCurrentVideoCall(null);
     setError(null);
+  }
 
+  // Handle incoming call acceptance
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
+
+    try {
+      await acceptCall(incomingCall.id);
+      
+      // Generate unique identity for the accepting user
+      const identity = generateUniqueIdentity(user?.id || '');
+      
+      console.log(`Accepting video call - Room: ${incomingCall.room_name}, Identity: ${identity}`);
+      
+      setCurrentVideoCall({
+        roomName: incomingCall.room_name,
+        identity,
+        participantName: incomingCall.from_user_name || 'Unknown User',
+        notificationId: incomingCall.id,
+      });
+      setShowVideoCallPopup(true);
+      clearIncomingCall();
+    } catch (error) {
+      console.error('Error accepting call:', error);
+      toast.error('Failed to accept call');
+    }
+  }
+
+  // Handle incoming call rejection
+  const handleRejectCall = async () => {
+    if (!incomingCall) return;
+
+    try {
+      await rejectCall(incomingCall.id);
+      clearIncomingCall();
+    } catch (error) {
+      console.error('Error rejecting call:', error);
+      toast.error('Failed to reject call');
+    }
+  }
+
+  // upload file function
+  const handleUploadFile = async (e: any) => {
+    e.stopPropagation();
+    console.log("File upload clicked");
+    const supabase = createClient();
+    const file = await supabase.storage
+      .from('chatfiles')
+      .upload('public/your-file.txt', e.target.files[0], {
+        cacheControl: '3600',
+        upsert: false
+      });
+    if (file.error) {
+      console.error("Error uploading file:", file.error);
+    } else {
+      console.log("File uploaded successfully:", file.data);
+    }
+  }
+  
+  // upload photo function
+  const handleUploadPhoto = () => {
+    console.log("Photo upload clicked");
   }
 
 
@@ -387,7 +485,7 @@ export default function page() {
                 </label>
 
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
-                   <button
+                  <button
                     type="button"
                     onClick={() => setShowEditProfilePopup(false)}
                     className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-200 text-gray-800 
@@ -508,7 +606,7 @@ export default function page() {
                 <FcVideoCall
                   size={22}
                   className="cursor-pointer hover:scale-110 active:scale-95 transition-transform"
-                  onClick={handleVidoeCall}
+                  onClick={handleVideoCall}
                 />
                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md">
                   Video Call
@@ -547,57 +645,26 @@ export default function page() {
             </div>
           </div>
 
-          {/* Video Call Popup (unchanged, but centered & mobile-safe) */}
-          {showVideoCallPopup && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center z-50 p-4">
-              <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl p-4 sm:p-6 flex flex-col items-center">
-                <div className="absolute top-3 right-3">
-                  <button
-                    onClick={handleEndVideoCall}
-                    className="text-gray-500 hover:text-gray-700 text-xl font-bold"
-                  >
-                    &times;
-                  </button>
-                </div>
+          {/* Video Call Modal */}
+          {showVideoCallPopup && currentVideoCall && (
+            <VideoCallModal
+              isOpen={showVideoCallPopup}
+              onClose={handleEndVideoCall}
+              roomName={currentVideoCall.roomName}
+              identity={currentVideoCall.identity}
+              participantName={currentVideoCall.participantName}
+              onCallEnd={handleEndVideoCall}
+            />
+          )}
 
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 text-center">
-                  Video Call with {userToChat?.full_name}
-                </h2>
-
-                {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
-
-                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full max-w-4xl">
-                  {/* Local Video */}
-                  <div className="flex flex-col items-center flex-1">
-                    <h3 className="text-gray-600 text-sm mb-2">You</h3>
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full max-w-xs sm:max-w-sm h-48 sm:h-64 bg-black rounded-lg shadow-md transform scale-x-[-1]"
-                    />
-                  </div>
-
-                  {/* Remote Video Placeholder */}
-                  <div className="flex flex-col items-center flex-1">
-                    <h3 className="text-gray-600 text-sm mb-2">Remote</h3>
-                    <div className="w-full max-w-xs sm:max-w-sm h-48 sm:h-64 bg-gray-800 rounded-lg shadow-md flex items-center justify-center">
-                      <p className="text-gray-300 text-xs sm:text-sm text-center px-2">
-                        Connecting to {userToChat?.full_name}...
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleEndVideoCall}
-                  className="mt-6 px-6 py-2.5 bg-red-600 text-white font-medium rounded-full shadow-md hover:bg-red-500 active:scale-95 transition transform"
-                >
-                  End Call
-                </button>
-              </div>
-            </div>
+          {/* Incoming Call Modal */}
+          {incomingCall && (
+            <IncomingCallModal
+              isOpen={!!incomingCall}
+              callerName={incomingCall.from_user_name || 'Unknown User'}
+              onAccept={handleAcceptCall}
+              onReject={handleRejectCall}
+            />
           )}
 
           {/* Chat Messages */}
@@ -639,21 +706,47 @@ export default function page() {
           {/* Input Box */}
           <div className="border-t border-gray-300 bg-white rounded-b-lg">
             <form onSubmit={handleSendMessage} className="flex items-center gap-3 px-4 py-3">
-              <input
-                type="text"
-                required
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
-              />
+              {/* Input container with relative positioning */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  required
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  className="w-full pl-4 pr-12 py-2 border border-gray-300 rounded-full text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
+                />
+                {/* Icons inside input on the right */}
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 -translate-x-4  flex gap-4 text-xl text-gray-600 hover:text-gray-800 cursor-pointer">
+                <button onClick={handleUploadFile}>
+                  <input
+                    type="file"
+                    // ref={fileInputRef}
+                    className="hidden"
+                    accept="*/*"
+                  />
+                  <FaFileUpload  />
+                </button>
+                <button onClick={handleUploadPhoto}>
+                  <input
+                    type="file"
+                    // ref={photoInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                  />
+                  <MdAddAPhoto />
+                </button>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={!userToChat}
-                className={`px-5 py-2 rounded-full shadow-md transition 
-                ${userToChat
+                className={`px-5 py-2 rounded-full shadow-md transition ${userToChat
                     ? "bg-gradient-to-r from-amber-600 to-amber-800 text-white hover:from-amber-500 hover:to-amber-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
               >
                 Send
               </button>
