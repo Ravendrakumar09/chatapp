@@ -716,9 +716,9 @@ export default function page() {
                   placeholder="Type your message..."
                   className="w-full pl-4 pr-12 py-2 border border-gray-300 rounded-full text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
                 />
-                {/* Icons inside input on the right */}
+                {/* Icons for file and photo inside input on the right */}
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 -translate-x-4  flex gap-4 text-xl text-gray-600 hover:text-gray-800 cursor-pointer">
-                <button onClick={handleUploadFile}>
+                <button>
                   <input
                     type="file"
                     // ref={fileInputRef}
@@ -727,7 +727,7 @@ export default function page() {
                   />
                   <FaFileUpload  />
                 </button>
-                <button onClick={handleUploadPhoto}>
+                <button>
                   <input
                     type="file"
                     // ref={photoInputRef}
